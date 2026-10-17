@@ -22,6 +22,7 @@ dev.db*
 .env*.local
 *.log
 
-# OS Files
+# OS Files & TypeScript build info
 .DS_Store
 *.pem
+*.tsbuildinfo
