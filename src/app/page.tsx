@@ -355,7 +355,7 @@ export default async function HomePage() {
           <p className="text-xs text-stone-500">
             Polygon Amoy Smart Contract:{" "}
             <code className="text-forest-800 font-mono text-[11px]">
-              0x9A7B31b6B7C37bE75E4De6A4eFa6E93c9E3917F4
+              0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4
             </code>
           </p>
         </div>

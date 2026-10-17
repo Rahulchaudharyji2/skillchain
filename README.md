@@ -2,7 +2,7 @@
 
 **Team:** Beast Coders  
 **Platform:** Next.js App Router • Polygon Amoy Testnet • Prisma ORM • Viem • Zod • Tailwind CSS  
-**Live Smart Contract (Polygon Amoy):** `0x9A7B31b6B7C37bE75E4De6A4eFa6E93c9E3917F4` (Chain ID: `80002`)
+**Live Smart Contract (Polygon Amoy):** `0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4` (Chain ID: `80002`)
 
 ---
 

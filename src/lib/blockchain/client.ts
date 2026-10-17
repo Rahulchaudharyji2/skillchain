@@ -1,12 +1,21 @@
-import { createPublicClient, http, type Hex, isHex } from "viem";
+import { createPublicClient, http, type Hex, isHex, getAddress } from "viem";
 import { REGISTRY_ABI } from "./registryAbi";
 
 export const POLYGON_AMOY_CHAIN_ID = 80002;
 export const POLYGON_AMOY_RPC =
   process.env.NEXT_PUBLIC_POLYGON_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology";
 
-export const REGISTRY_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CREDENTIAL_REGISTRY_ADDRESS ||
-  "0x9A7B31b6B7C37bE75E4De6A4eFa6E93c9E3917F4") as Hex;
+const RAW_REGISTRY_ADDRESS =
+  process.env.NEXT_PUBLIC_CREDENTIAL_REGISTRY_ADDRESS ||
+  "0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4";
+
+export const REGISTRY_CONTRACT_ADDRESS: `0x${string}` = (() => {
+  try {
+    return getAddress(RAW_REGISTRY_ADDRESS);
+  } catch {
+    return "0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4";
+  }
+})();
 
 export const publicClient = createPublicClient({
   transport: http(POLYGON_AMOY_RPC),
