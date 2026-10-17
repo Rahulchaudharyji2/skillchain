@@ -58,6 +58,8 @@ export default async function StudentDashboardPage() {
     .flatMap((a) => a.interviews)
     .find((i) => i.status === "SCHEDULED" || i.status === "COMPLETED");
 
+  const offeredCredential = credentials.find((c) => c.status === "OFFERED" || c.status === "PENDING_ACCEPTANCE");
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Welcome Banner */}
@@ -93,6 +95,38 @@ export default async function StudentDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Pending Soulbound Degree Claim Banner */}
+      {offeredCredential && (
+        <div className="card-premium p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 shadow-md space-y-4 animate-in zoom-in-95">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 inline-block mb-1">
+                  🎓 College Assigned Soulbound Degree
+                </span>
+                <h3 className="text-lg font-bold text-forest-950">
+                  {offeredCredential.title}
+                </h3>
+                <p className="text-xs text-stone-600">
+                  Conferred by <strong>{offeredCredential.organization.name}</strong> • {offeredCredential.fieldOfStudy} (Grade: {offeredCredential.grade})
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/student/credentials"
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs flex items-center gap-2 shadow-sm transition-all"
+            >
+              <span>🦊 Accept & Claim with MetaMask</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

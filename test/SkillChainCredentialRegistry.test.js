@@ -266,4 +266,57 @@ describe("SkillChainCredentialRegistry — Comprehensive Verification Suite", fu
       ).to.be.revertedWithCustomError(registry, "AccessControlUnauthorizedAccount");
     });
   });
+
+  describe("5. Consensual Soulbound Degree Offer & MetaMask Claim Workflow", function () {
+    const credId = ethers.keccak256(ethers.toUtf8Bytes("CRED-2026-SOULBOUND-OFFER-01"));
+    const commitment = ethers.sha256(ethers.toUtf8Bytes("Alex Rivera|BS CS|3.9|SALT_CLAIM_999"));
+    const typeURI = "https://skillchain.org/schemas/soulbound-degree/v1";
+
+    beforeEach(async function () {
+      await registry.registerIssuer(issuer1.address, "MIT", "https://mit.edu");
+    });
+
+    it("Authorized college can offer a soulbound degree awaiting student acceptance", async function () {
+      const tx = await registry.connect(issuer1).offerDegree(
+        credId,
+        commitment,
+        student1.address,
+        typeURI
+      );
+
+      await expect(tx)
+        .to.emit(registry, "DegreeOffered")
+        .withArgs(credId, commitment, issuer1.address, student1.address, typeURI, (val) => val > 0);
+
+      const cred = await registry.getCredential(credId);
+      expect(cred.status).to.equal(4); // Offered
+      expect(cred.studentWallet).to.equal(student1.address);
+      expect(cred.issuedAt).to.equal(0);
+    });
+
+    it("Student connects MetaMask wallet to accept and soulbound-lock the degree", async function () {
+      await registry.connect(issuer1).offerDegree(credId, commitment, student1.address, typeURI);
+
+      const claimTx = await registry.connect(student1).claimDegree(credId);
+
+      await expect(claimTx)
+        .to.emit(registry, "DegreeClaimed")
+        .withArgs(credId, student1.address, (val) => val > 0);
+
+      const cred = await registry.getCredential(credId);
+      expect(cred.status).to.equal(1); // Active
+      expect(cred.studentWallet).to.equal(student1.address);
+      expect(cred.issuedAt).to.be.greaterThan(0);
+      expect(await registry.isSoulbound()).to.equal(true);
+    });
+
+    it("Reverts if an unauthorized wallet attempts to claim another student's degree", async function () {
+      await registry.connect(issuer1).offerDegree(credId, commitment, student1.address, typeURI);
+
+      await expect(
+        registry.connect(student2).claimDegree(credId)
+      ).to.be.revertedWithCustomError(registry, "UnauthorizedStudent");
+    });
+  });
 });
+

@@ -377,6 +377,43 @@ async function main() {
     },
   });
 
+  // Offered Degree waiting for student MetaMask claim & soulbound locking
+  const credOfferedCommitment = generateCommitment(
+    { student: "Alex Rivera", degree: "Master of Science in Distributed Systems", gpa: "3.98" },
+    "MIT_SALT_MASTER_847291"
+  );
+  const credOfferedId = "0x91ae284759283746192847192847192847192847192847192847192847192847";
+
+  await prisma.credential.create({
+    data: {
+      credId: credOfferedId,
+      studentProfileId: alexProfile.id,
+      issuerId: mitIssuer.id,
+      organizationId: mitOrg.id,
+      title: "Master of Science in Distributed Systems & Web3",
+      credentialType: "DEGREE",
+      degreeName: "Master of Science",
+      fieldOfStudy: "Distributed Systems & Applied Cryptography",
+      grade: "Summa Cum Laude (GPA 3.98)",
+      issuanceDate: new Date("2026-05-20"),
+      commitment: credOfferedCommitment,
+      signature: "0x48b9f123615481729bcae819283746192837461928374619283746192837461928374619283746192837461928374619283746192837461c",
+      txHash: null,
+      status: "OFFERED",
+      metadataUri: "https://skillchain.org/credentials/mit-ms-alex-rivera.json",
+      statusEvents: {
+        create: [
+          {
+            previousStatus: "PENDING",
+            newStatus: "OFFERED",
+            actorId: uniAdminUser.id,
+            reason: "Master of Science degree conferred by MIT. Awaiting student acceptance via MetaMask to soulbound-lock.",
+          },
+        ],
+      },
+    },
+  });
+
   // 7. Student Projects
   console.log("Creating student projects...");
 

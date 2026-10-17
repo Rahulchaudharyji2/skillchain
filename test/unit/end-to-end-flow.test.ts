@@ -71,8 +71,8 @@ describe("SkillChain Complete End-to-End Flow Verification", () => {
     };
     expect(verifyCredentialIntegrity(tamperedPayload, commitment)).toBe(false);
 
-    // Record credential in database
-    const credId = "0x" + "b".repeat(64);
+    // Record credential in database with unique credId
+    const credId = "0x" + "b".repeat(40) + Date.now().toString(16).padStart(24, "0");
     degreeCredential = await prisma.credential.create({
       data: {
         credId,

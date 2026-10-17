@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ShieldCheck, Search, QrCode, FileCheck, ArrowUpRight } from "lucide-react";
+import { ShieldCheck, Search, QrCode, FileCheck, ArrowUpRight, LogIn } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DemoSwitcher } from "./DemoSwitcher";
+import { MetaMaskWalletButton } from "@/components/blockchain/MetaMaskWalletButton";
 
 export async function Navbar() {
   const user = await getCurrentUser();
@@ -74,6 +75,17 @@ export async function Navbar() {
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
+          <MetaMaskWalletButton />
+
+          <Link
+            href="/login"
+            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-semibold text-stone-700 hover:text-forest-900 hover:bg-stone-100 transition-all"
+            title="Institutional Login"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Login</span>
+          </Link>
+
           <DemoSwitcher
             currentRole={user?.role || "STUDENT"}
             userName={user?.name || "Alex Rivera"}

@@ -8,10 +8,12 @@ import {
   Building,
   GraduationCap,
   Copy,
+  Lock,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
+import { MetaMaskClaimDegree } from "@/components/blockchain/MetaMaskClaimDegree";
 
 export default async function StudentCredentialsPage() {
   const user = await getCurrentUser();
@@ -52,56 +54,114 @@ export default async function StudentCredentialsPage() {
       </div>
 
       <div className="space-y-6">
-        {credentials.map((cred) => (
-          <div key={cred.id} className="card-premium p-6 sm:p-8 bg-white border border-cream-300 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-cream-200 gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-2xl bg-amber-100 text-amber-900">
-                  <GraduationCap className="w-7 h-7" />
+        {credentials.map((cred) => {
+          const isOffered = cred.status === "OFFERED" || cred.status === "PENDING_ACCEPTANCE";
+
+          return (
+            <div
+              key={cred.id}
+              className={`card-premium p-6 sm:p-8 bg-white border space-y-6 ${
+                isOffered ? "border-2 border-amber-400 bg-amber-50/20 shadow-md" : "border-cream-300"
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-cream-200 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${isOffered ? "bg-amber-200 text-amber-950" : "bg-amber-100 text-amber-900"}`}>
+                    <GraduationCap className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-stone-400">
+                      {cred.organization.name}
+                    </span>
+                    <h2 className="text-lg font-bold text-forest-950">{cred.title}</h2>
+                    <p className="text-xs text-stone-600">
+                      {cred.fieldOfStudy} • Grade: {cred.grade}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-stone-400">
-                    {cred.organization.name}
+
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                      isOffered
+                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                        : "seal-badge"
+                    }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                    STATUS: {isOffered ? "AWAITING METAMASK CLAIM" : cred.status}
                   </span>
-                  <h2 className="text-lg font-bold text-forest-950">{cred.title}</h2>
-                  <p className="text-xs text-stone-600">
-                    {cred.fieldOfStudy} • Grade: {cred.grade}
-                  </p>
+
+                  {!isOffered && (
+                    <Link
+                      href={`/verify/${cred.credId}`}
+                      className="px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+                    >
+                      <span>Public Proof</span>
+                      <ExternalLink className="w-3 h-3 text-ochre-300" />
+                    </Link>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="seal-badge text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                  STATUS: {cred.status}
-                </span>
+              {/* Action Banner for Offered Soulbound Degree */}
+              {isOffered && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-950">
+                    <span>🦊</span>
+                    <span>College has Assigned this Soulbound Degree to You</span>
+                  </div>
+                  <p className="text-xs text-amber-900 leading-relaxed">
+                    Massachusetts Institute of Technology has approved your academic conferral. To permanently anchor
+                    and lock this non-transferable degree to your wallet on Polygon Amoy, connect MetaMask and accept below.
+                  </p>
+                  <MetaMaskClaimDegree
+                    credentialId={cred.id}
+                    credIdHex={cred.credId}
+                    title={cred.title}
+                    institutionName={cred.organization.name}
+                  />
+                </div>
+              )}
 
-                <Link
-                  href={`/verify/${cred.credId}`}
-                  className="px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-                >
-                  <span>Public Proof</span>
-                  <ExternalLink className="w-3 h-3 text-ochre-300" />
-                </Link>
-              </div>
-            </div>
+              {/* Cryptographic Proof Details */}
+              <div className="grid md:grid-cols-2 gap-4 text-xs font-mono">
+                <div className="p-3.5 rounded-xl bg-cream-50 border border-cream-200 space-y-1">
+                  <span className="text-[10px] font-sans text-stone-400 font-semibold block">
+                    SHA-256 COMMITMENT HASH
+                  </span>
+                  <span className="text-forest-950 break-all text-[11px] block">{cred.commitment}</span>
+                </div>
 
-            {/* Cryptographic Proof Details */}
-            <div className="grid md:grid-cols-2 gap-4 text-xs font-mono">
-              <div className="p-3.5 rounded-xl bg-cream-50 border border-cream-200 space-y-1">
-                <span className="text-[10px] font-sans text-stone-400 font-semibold block">
-                  SHA-256 COMMITMENT HASH
-                </span>
-                <span className="text-forest-950 break-all text-[11px] block">{cred.commitment}</span>
+                <div className="p-3.5 rounded-xl bg-cream-50 border border-cream-200 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-sans text-stone-400 font-semibold block">
+                      POLYGON AMOY TRANSACTION
+                    </span>
+                    {cred.txHash && (
+                      <a
+                        href={`https://amoy.polygonscan.com/tx/${cred.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-sans text-emerald-800 font-semibold hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>PolygonScan</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <span className="text-forest-950 break-all text-[11px] block">{cred.txHash || "Pending Confirmation"}</span>
+                </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-cream-50 border border-cream-200 space-y-1">
-                <span className="text-[10px] font-sans text-stone-400 font-semibold block">
-                  POLYGON AMOY TRANSACTION
-                </span>
-                <span className="text-forest-950 break-all text-[11px] block">{cred.txHash}</span>
-              </div>
-            </div>
+              {/* Soulbound Lock Guarantee */}
+              {!isOffered && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                  <span className="font-semibold">Soulbound Locked:</span>
+                  <span className="text-stone-600">This degree is non-transferable and permanently bound to student wallet on-chain.</span>
+                </div>
+              )}
 
             {/* Status History */}
             {cred.statusEvents.length > 0 && (
@@ -125,7 +185,8 @@ export default async function StudentCredentialsPage() {
               </div>
             )}
           </div>
-        ))}
+        );
+      })}
       </div>
     </div>
   );

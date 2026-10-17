@@ -18,7 +18,8 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
         None,        // 0: Credential does not exist
         Active,      // 1: Valid and active
         Suspended,   // 2: Temporarily suspended pending institutional review
-        Revoked      // 3: Permanently revoked
+        Revoked,     // 3: Permanently revoked
+        Offered      // 4: Offered by college, awaiting student claim via MetaMask
     }
 
     struct CredentialRecord {
@@ -55,6 +56,19 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
         string credentialTypeURI,
         uint64 issuedAt
     );
+    event DegreeOffered(
+        bytes32 indexed credId,
+        bytes32 indexed commitment,
+        address indexed issuer,
+        address studentWallet,
+        string credentialTypeURI,
+        uint64 offeredAt
+    );
+    event DegreeClaimed(
+        bytes32 indexed credId,
+        address indexed studentWallet,
+        uint64 claimedAt
+    );
     event CredentialSuspended(bytes32 indexed credId, address indexed issuer, string reason, uint64 timestamp);
     event CredentialRestored(bytes32 indexed credId, address indexed issuer, uint64 timestamp);
     event CredentialRevoked(bytes32 indexed credId, address indexed issuer, string reason, uint64 timestamp);
@@ -63,6 +77,7 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
     error IssuerAlreadyRegistered(address issuer);
     error IssuerNotRegistered(address issuer);
     error UnauthorizedIssuer(address caller);
+    error UnauthorizedStudent(address caller, address requiredWallet);
     error CredentialAlreadyExists(bytes32 credId);
     error CredentialNotFound(bytes32 credId);
     error InvalidCredentialStatus(bytes32 credId, CredentialStatus currentStatus);
@@ -146,6 +161,75 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
             credentialTypeURI,
             uint64(block.timestamp)
         );
+    }
+
+    /**
+     * @notice University offers an academic degree to a student wallet, awaiting MetaMask acceptance
+     */
+    function offerDegree(
+        bytes32 credId,
+        bytes32 commitment,
+        address studentWallet,
+        string calldata credentialTypeURI
+    ) external onlyRole(ISSUER_ROLE) whenNotPaused {
+        if (_credentials[credId].status != CredentialStatus.None) {
+            revert CredentialAlreadyExists(credId);
+        }
+        if (commitment == bytes32(0)) revert EmptyCommitmentNotAllowed();
+
+        _credentials[credId] = CredentialRecord({
+            commitment: commitment,
+            studentWallet: studentWallet,
+            issuer: msg.sender,
+            issuedAt: 0,
+            revokedAt: 0,
+            status: CredentialStatus.Offered,
+            credentialTypeURI: credentialTypeURI
+        });
+
+        emit DegreeOffered(
+            credId,
+            commitment,
+            msg.sender,
+            studentWallet,
+            credentialTypeURI,
+            uint64(block.timestamp)
+        );
+    }
+
+    /**
+     * @notice Student connects MetaMask to claim and soulbound-lock the offered degree
+     */
+    function claimDegree(bytes32 credId) external whenNotPaused {
+        CredentialRecord storage record = _credentials[credId];
+        if (record.status == CredentialStatus.None) revert CredentialNotFound(credId);
+        if (record.status != CredentialStatus.Offered) {
+            revert InvalidCredentialStatus(credId, record.status);
+        }
+        if (record.studentWallet != address(0) && record.studentWallet != msg.sender) {
+            revert UnauthorizedStudent(msg.sender, record.studentWallet);
+        }
+
+        record.studentWallet = msg.sender;
+        record.status = CredentialStatus.Active;
+        record.issuedAt = uint64(block.timestamp);
+
+        emit DegreeClaimed(credId, msg.sender, uint64(block.timestamp));
+        emit CredentialIssued(
+            credId,
+            record.commitment,
+            record.issuer,
+            msg.sender,
+            record.credentialTypeURI,
+            uint64(block.timestamp)
+        );
+    }
+
+    /**
+     * @notice Checks if the credential registry enforces soulbound non-transferability
+     */
+    function isSoulbound() external pure returns (bool) {
+        return true;
     }
 
     /**

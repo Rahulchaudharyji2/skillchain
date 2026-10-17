@@ -37,12 +37,14 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
   const [fieldOfStudy, setFieldOfStudy] = useState("Computer Science & Engineering");
   const [grade, setGrade] = useState("Summa Cum Laude (GPA 3.95)");
   const [issuanceDate, setIssuanceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [mode, setMode] = useState<"OFFER" | "DIRECT_MINT">("OFFER");
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     credentialId: string;
     txHash: string;
     commitment: string;
+    status?: string;
   } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,12 +62,13 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
           fieldOfStudy,
           grade,
           issuanceDate,
+          mode,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        setResult(data);
+        setResult({ ...data, status: mode === "OFFER" ? "OFFERED" : "ACTIVE" });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
     } catch (err) {
@@ -211,6 +214,58 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
             className="w-full p-2.5 rounded-lg bg-cream-50 border border-cream-300 text-xs text-stone-800 focus:outline-none"
             required
           />
+        </div>
+      </div>
+
+      {/* Conferral Mode Selector */}
+      <div className="space-y-2">
+        <label className="text-xs font-semibold text-stone-700 block">
+          Select Conferral Workflow
+        </label>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div
+            onClick={() => setMode("OFFER")}
+            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+              mode === "OFFER"
+                ? "border-amber-500 bg-amber-50/50 ring-1 ring-amber-500"
+                : "border-cream-300 bg-white hover:border-cream-400"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <span>🦊</span>
+                <span>Assign as Soulbound Degree</span>
+              </span>
+              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                Consensual
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-600 leading-snug">
+              University offers degree. Student connects MetaMask wallet to accept and soulbound-lock it. Non-transferable once claimed.
+            </p>
+          </div>
+
+          <div
+            onClick={() => setMode("DIRECT_MINT")}
+            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+              mode === "DIRECT_MINT"
+                ? "border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600"
+                : "border-cream-300 bg-white hover:border-cream-400"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-forest-950 flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>Direct Institutional Mint</span>
+              </span>
+              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                Instant
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-600 leading-snug">
+              Directly mints and confirms the verifiable credential onto Polygon Amoy registry immediately.
+            </p>
+          </div>
         </div>
       </div>
 

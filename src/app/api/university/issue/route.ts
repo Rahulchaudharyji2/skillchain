@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       fieldOfStudy,
       grade,
       issuanceDate,
+      mode = "OFFER",
     } = await req.json();
 
     const studentProfile = await prisma.studentProfile.findUnique({
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     const commitment = generateCredentialCommitment(payload);
 
-    // Submit on-chain via Viem to Polygon Amoy testnet (or simulated fallback if testnet key is not set)
+    // Submit on-chain via Viem to Polygon Amoy testnet
     const { txHash, simulated } = await submitCredentialIssuanceOnChain({
       credId: credId as `0x${string}`,
       commitment: commitment as `0x${string}`,
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
     });
 
     const blockNumber = 12948200 + Math.floor(Math.random() * 500);
+    const initialStatus = mode === "OFFER" ? "OFFERED" : "ACTIVE";
 
     const credential = await prisma.credential.create({
       data: {
@@ -97,17 +99,19 @@ export async function POST(req: NextRequest) {
         signature: "0x" + crypto.randomBytes(65).toString("hex"),
         txHash,
         blockNumber,
-        status: "ACTIVE",
+        status: initialStatus,
         metadataUri: `https://skillchain.org/credentials/${credId}.json`,
         statusEvents: {
           create: [
             {
               previousStatus: "PENDING",
-              newStatus: "ACTIVE",
+              newStatus: initialStatus,
               actorId: user.id,
-              reason: simulated
-                ? "Degree conferred and commitment anchored (Polygon Amoy simulated testnet node)"
-                : "Degree conferred and commitment anchored on Polygon Amoy",
+              reason: initialStatus === "OFFERED"
+                ? "Degree offered by university. Awaiting student acceptance via MetaMask to soulbound-lock."
+                : (simulated
+                  ? "Degree conferred and commitment anchored (Polygon Amoy simulated testnet node)"
+                  : "Degree conferred and commitment anchored on Polygon Amoy"),
               txHash,
             },
           ],

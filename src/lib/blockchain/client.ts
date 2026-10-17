@@ -33,7 +33,7 @@ export const publicClient = createPublicClient({
 });
 
 export interface OnChainCredentialStatus {
-  status: "ACTIVE" | "SUSPENDED" | "REVOKED" | "NOT_FOUND";
+  status: "ACTIVE" | "SUSPENDED" | "REVOKED" | "OFFERED" | "NOT_FOUND";
   rawStatusCode: number;
   commitment: string;
   issuer: string;
@@ -69,10 +69,11 @@ export async function verifyCredentialOnChain(
 
     const [statusInt, commitment, issuer, studentWallet, issuedAt, revokedAt, typeURI] = data;
 
-    let statusString: "ACTIVE" | "SUSPENDED" | "REVOKED" | "NOT_FOUND" = "NOT_FOUND";
+    let statusString: "ACTIVE" | "SUSPENDED" | "REVOKED" | "OFFERED" | "NOT_FOUND" = "NOT_FOUND";
     if (statusInt === 1) statusString = "ACTIVE";
     else if (statusInt === 2) statusString = "SUSPENDED";
     else if (statusInt === 3) statusString = "REVOKED";
+    else if (statusInt === 4) statusString = "OFFERED";
 
     return {
       status: statusString,
