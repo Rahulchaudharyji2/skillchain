@@ -32,6 +32,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.2.0",
     "@types/canvas-confetti": "^1.9.0",
@@ -40,6 +41,8 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.6.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.1.6",
     "hardhat": "^2.22.18",
     "postcss": "^8.5.1",
     "prisma": "^6.2.1",
