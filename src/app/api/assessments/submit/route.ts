@@ -1,166 +1,167 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { executeCandidateCode } from "@/lib/assessments/runner";
+import { gradeAssessmentAttempt } from "@/lib/assessments/scoring";
+import { evaluateAttemptTimer } from "@/lib/assessments/timer";
+import { issueSkillCredentialAfterChecks } from "@/lib/assessments/credentials";
 
 export async function POST(req: NextRequest) {
   try {
     const { attemptId, answers } = await req.json();
+
+    if (!attemptId || !answers) {
+      return NextResponse.json({ error: "attemptId and answers are required." }, { status: 400 });
+    }
 
     const attempt = await prisma.assessmentAttempt.findUnique({
       where: { id: attemptId },
       include: {
         assessment: {
           include: {
-            questions: { include: { testCases: true } },
+            questions: {
+              include: { testCases: true },
+            },
             skills: { include: { skill: true } },
           },
         },
         studentProfile: true,
+        proctoringEvents: true,
       },
     });
 
     if (!attempt) {
-      return NextResponse.json({ error: "Attempt not found" }, { status: 404 });
+      return NextResponse.json({ error: "Attempt not found." }, { status: 404 });
     }
 
-    let totalPointsPossible = 0;
-    let totalPointsEarned = 0;
-
-    for (const q of attempt.assessment.questions) {
-      totalPointsPossible += q.points;
-      const studentAns = answers[q.id];
-
-      if (q.type === "MULTIPLE_CHOICE" || q.type === "MULTIPLE_SELECT") {
-        let correctOptions: string[] = [];
-        try {
-          correctOptions = JSON.parse(q.correctAnswersJson);
-        } catch {
-          correctOptions = [q.correctAnswersJson];
-        }
-
-        const isCorrect = correctOptions.includes(studentAns);
-        const earned = isCorrect ? q.points : 0;
-        totalPointsEarned += earned;
-
-        await prisma.submission.create({
-          data: {
-            attemptId: attempt.id,
-            questionId: q.id,
-            studentAnswer: String(studentAns || ""),
-            scoreEarned: earned,
-          },
-        });
-      } else if (q.type === "CODING") {
-        const code = String(studentAns || q.starterCode || "");
-        const execResult = await executeCandidateCode(
-          code,
-          q.language || "javascript",
-          q.testCases.map((tc) => ({
-            id: tc.id,
-            input: tc.input,
-            expectedOutput: tc.expectedOutput,
-            isHidden: tc.isHidden,
-            weight: tc.weight,
-          })),
-          q.points
-        );
-
-        totalPointsEarned += execResult.score;
-
-        await prisma.submission.create({
-          data: {
-            attemptId: attempt.id,
-            questionId: q.id,
-            codeSolution: code,
-            language: q.language || "javascript",
-            executionOutput: execResult.executionLog,
-            passedTestCases: execResult.testCaseResults.filter((r) => r.passed).length,
-            totalTestCases: execResult.testCaseResults.length,
-            scoreEarned: execResult.score,
-          },
-        });
-      }
+    if (attempt.status === "GRADED" && attempt.completedAt) {
+      return NextResponse.json(
+        { error: "Attempt has already been finalized and graded." },
+        { status: 400 }
+      );
     }
 
-    const percentageScore =
-      totalPointsPossible > 0
-        ? Math.round((totalPointsEarned / totalPointsPossible) * 1000) / 10
-        : 0;
+    // 1. Authoritative Timer Validation
+    const now = new Date();
+    const timerEval = evaluateAttemptTimer(
+      attempt.startedAt,
+      attempt.assessment.durationMinutes,
+      now
+    );
 
-    const isPassed = percentageScore >= attempt.assessment.passingThreshold;
+    let isOvertime = false;
+    if (timerEval.isExpired) {
+      isOvertime = true;
+      // Record authoritative timeout event
+      await prisma.proctoringEvent.create({
+        data: {
+          attemptId: attempt.id,
+          eventType: "TIMEOUT",
+          metadata: JSON.stringify({
+            secondsOverdue: timerEval.secondsOverdue,
+            submittedAt: now.toISOString(),
+            expiresAt: timerEval.expiresAt.toISOString(),
+          }),
+          timestamp: now,
+        },
+      });
+    }
 
-    // Update attempt
+    // 2. Server-Side Scoring of All Questions
+    const grading = await gradeAssessmentAttempt(
+      attempt.assessment.questions.map((q) => ({
+        id: q.id,
+        type: q.type,
+        points: q.points,
+        correctAnswersJson: q.correctAnswersJson,
+        starterCode: q.starterCode,
+        language: q.language,
+        testCases: q.testCases.map((tc) => ({
+          id: tc.id,
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          isHidden: tc.isHidden,
+          weight: tc.weight,
+        })),
+      })),
+      answers,
+      attempt.assessment.passingThreshold
+    );
+
+    // 3. Persist Submissions
+    for (const qr of grading.questionResults) {
+      await prisma.submission.create({
+        data: {
+          attemptId: attempt.id,
+          questionId: qr.questionId,
+          studentAnswer: qr.studentAnswer || null,
+          codeSolution: qr.codeSolution || null,
+          language: qr.language || null,
+          executionOutput: qr.executionOutput || null,
+          passedTestCases: qr.passedTestCases,
+          totalTestCases: qr.totalTestCases,
+          scoreEarned: qr.pointsEarned,
+        },
+      });
+    }
+
+    // 4. Proctoring & Integrity Evaluation
+    // Check if flagged by proctoring events or overtime
+    const anomalyEvents = attempt.proctoringEvents.filter((e) => e.eventType !== "CONSENT_GRANTED");
+    const hasIntegrityFlags = attempt.status === "FLAGGED" || anomalyEvents.length >= 2 || isOvertime;
+
+    const finalStatus = hasIntegrityFlags ? "FLAGGED" : "GRADED";
+
+    // 5. Update Attempt Record
     await prisma.assessmentAttempt.update({
       where: { id: attempt.id },
       data: {
-        status: "GRADED",
-        score: percentageScore,
-        passed: isPassed,
-        submittedAt: new Date(),
-        completedAt: new Date(),
+        status: finalStatus,
+        score: grading.percentageScore,
+        passed: grading.passed,
+        submittedAt: now,
+        completedAt: now,
       },
     });
 
-    // Create result
+    // 6. Create Assessment Result
+    let resultFeedback = "";
+    if (hasIntegrityFlags) {
+      resultFeedback = `Your assessment earned ${grading.percentageScore}%. Because session flags were recorded (e.g. tab blur or window focus), your attempt is queued for human assessor verification. Note: Proctoring flags are never automated proof of cheating.`;
+    } else if (grading.passed) {
+      resultFeedback = `Congratulations! You scored ${grading.percentageScore}%, passing the ${attempt.assessment.passingThreshold}% threshold. A verified skill credential has been issued.`;
+    } else {
+      resultFeedback = `You scored ${grading.percentageScore}%. The passing threshold is ${attempt.assessment.passingThreshold}%. Review the core concepts and try again after the cooldown period.`;
+    }
+
     await prisma.assessmentResult.create({
       data: {
         attemptId: attempt.id,
-        totalScore: totalPointsEarned,
-        maxScore: totalPointsPossible,
-        percentageScore,
-        verifiedSkillIssued: isPassed,
-        feedback: isPassed
-          ? `Congratulations! You scored ${percentageScore}%, meeting the ${attempt.assessment.passingThreshold}% passing threshold. A verified skill credential has been recorded.`
-          : `You scored ${percentageScore}%. The passing threshold is ${attempt.assessment.passingThreshold}%. Review the core concepts and try again in 7 days.`,
+        totalScore: grading.totalPointsEarned,
+        maxScore: grading.totalPointsPossible,
+        percentageScore: grading.percentageScore,
+        verifiedSkillIssued: false, // will be flipped to true when checks pass
+        feedback: resultFeedback,
       },
     });
 
-    // If passed, issue verified skills
-    if (isPassed) {
-      for (const as of attempt.assessment.skills) {
-        const studentSkill = await prisma.studentSkill.upsert({
-          where: {
-            studentProfileId_skillId: {
-              studentProfileId: attempt.studentProfileId,
-              skillId: as.skillId,
-            },
-          },
-          update: {
-            verifiedByAssessment: true,
-            isSelfDeclared: false,
-            proficiencyLevel: percentageScore >= 90 ? "ADVANCED" : "INTERMEDIATE",
-          },
-          create: {
-            studentProfileId: attempt.studentProfileId,
-            skillId: as.skillId,
-            verifiedByAssessment: true,
-            isSelfDeclared: false,
-            proficiencyLevel: percentageScore >= 90 ? "ADVANCED" : "INTERMEDIATE",
-          },
-        });
-
-        // Add Skill Evidence
-        await prisma.skillEvidence.create({
-          data: {
-            studentSkillId: studentSkill.id,
-            evidenceType: "ASSESSMENT",
-            title: `Proctored Assessment: ${attempt.assessment.title}`,
-            description: `Passed proctored assessment with a score of ${percentageScore}%.`,
-            score: percentageScore,
-            proofUrl: `/student/attempts/${attempt.id}`,
-          },
-        });
-      }
+    // 7. Credential Issuance after Required Checks
+    let credentialResult = null;
+    if (!hasIntegrityFlags && grading.passed) {
+      credentialResult = await issueSkillCredentialAfterChecks(attempt.id);
     }
 
     return NextResponse.json({
       success: true,
-      passed: isPassed,
-      score: percentageScore,
-      totalEarned: totalPointsEarned,
-      totalPossible: totalPointsPossible,
+      status: finalStatus,
+      score: grading.percentageScore,
+      passed: grading.passed,
+      totalEarned: grading.totalPointsEarned,
+      totalPossible: grading.totalPointsPossible,
+      requiresHumanReview: hasIntegrityFlags,
+      credentialIssued: credentialResult?.success || false,
+      credentialId: credentialResult?.credentialId,
+      feedback: resultFeedback,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

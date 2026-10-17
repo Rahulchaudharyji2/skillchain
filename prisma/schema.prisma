@@ -302,6 +302,8 @@ model Assessment {
   durationMinutes  Int                @default(45)
   passingThreshold Float              @default(70.0) // Percentage required to pass
   version          Int                @default(1)
+  maxAttempts      Int                @default(3)
+  cooldownHours    Int                @default(24)
   instructions     String
   isActive         Boolean            @default(true)
   createdAt        DateTime           @default(now())
@@ -356,13 +358,15 @@ model AssessmentAttempt {
   id               String            @id @default(cuid())
   assessmentId     String
   studentProfileId String
-  status           String            @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | GRADED | FLAGGED | APPEALED
+  status           String            @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | GRADED | FLAGGED | APPEALED | REJECTED
   score            Float?
   passed           Boolean           @default(false)
   startedAt        DateTime          @default(now())
+  expiresAt        DateTime?
   submittedAt      DateTime?
   completedAt      DateTime?
   version          Int               @default(1)
+  consentGiven     Boolean           @default(false)
 
   assessment       Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   studentProfile   StudentProfile    @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)

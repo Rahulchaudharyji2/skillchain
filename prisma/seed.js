@@ -301,6 +301,9 @@ async function main() {
   });
 
   // Skills
+  const skillJS = await prisma.skill.create({
+    data: { name: "JavaScript", slug: "javascript", categoryId: catFrontend.id, description: "ES6+, async programming, closures, event loop, and functional patterns." },
+  });
   const skillReact = await prisma.skill.create({
     data: { name: "React", slug: "react", categoryId: catFrontend.id, description: "Component architecture, hooks, suspense, and virtual DOM optimization." },
   });
@@ -416,7 +419,7 @@ async function main() {
   // 8. Assessments & Questions
   console.log("Creating skill assessments and coding questions...");
 
-  // React Assessment
+  // React Assessment (Versioned)
   const reactAssessment = await prisma.assessment.create({
     data: {
       title: "React & Modern Component Architecture",
@@ -427,7 +430,9 @@ async function main() {
       durationMinutes: 45,
       passingThreshold: 75.0,
       version: 1,
-      instructions: "This assessment evaluates your practical understanding of React 19 / 18, hook lifecycle, state management, render optimization, and asynchronous UI handling. The assessment includes multiple choice concept checks and a sandboxed live coding challenge.",
+      maxAttempts: 3,
+      cooldownHours: 24,
+      instructions: "This assessment evaluates your practical understanding of React 19 / 18, hook lifecycle, state management, render optimization, and asynchronous UI handling. The assessment includes single-choice checks, multi-select criteria, short answer, and a sandboxed live coding challenge with hidden test cases.",
       skills: {
         create: [
           { skillId: skillReact.id, weight: 1.0 },
@@ -450,28 +455,40 @@ async function main() {
             explanation: "useMemo caches the result of an expensive calculation between renders based on dependencies.",
           },
           {
-            type: "MULTIPLE_CHOICE",
-            questionText: "What occurs if you update state inside a `useEffect` without specifying a dependency array?",
+            type: "MULTIPLE_SELECT",
+            questionText: "Select all valid React Rules of Hooks that must be strictly observed:",
             optionsJson: JSON.stringify([
-              "The effect runs once on mount",
-              "An infinite re-render loop occurs",
-              "React throws a compile error",
-              "The state change is ignored"
+              "Only call hooks at the top level of component",
+              "Only call hooks from React function components or custom hooks",
+              "Hooks can be called inside conditional if-blocks if the condition is constant",
+              "Hooks must be called inside event listeners"
             ]),
-            correctAnswersJson: JSON.stringify(["An infinite re-render loop occurs"]),
+            correctAnswersJson: JSON.stringify([
+              "Only call hooks at the top level of component",
+              "Only call hooks from React function components or custom hooks"
+            ]),
             points: 15,
-            explanation: "Without a dependency array, useEffect executes on every render. Updating state inside it triggers another render, causing an infinite loop.",
+            explanation: "Hooks must only be called at top level and only from React functions or custom hooks to preserve hook call order.",
+          },
+          {
+            type: "SHORT_ANSWER",
+            questionText: "What React hook returns a mutable ref object whose .current property persists across re-renders without triggering a new render when mutated?",
+            correctAnswersJson: JSON.stringify(["useRef", "ref"]),
+            points: 15,
+            explanation: "useRef stores mutable values that persist across renders without causing re-renders.",
           },
           {
             type: "CODING",
-            questionText: "Implement a function `filterActiveSkills(candidates, minScore)` that filters a list of candidate skill objects where `status === 'active'` and `score >= minScore`, sorted descending by score.",
+            questionText: "Implement a function `filterActiveSkills(skills, minScore)` that filters a list of candidate skill objects where `status === 'active'` and `score >= minScore`, sorted descending by score.",
             starterCode: `function filterActiveSkills(skills, minScore) {
-  // Your code here
-  return [];
+  // Your solution here
+  return skills
+    .filter(s => s.status === 'active' && s.score >= minScore)
+    .sort((a, b) => b.score - a.score);
 }`,
             correctAnswersJson: JSON.stringify(["// reference implementation"]),
             language: "javascript",
-            points: 40,
+            points: 55,
             explanation: "Requires array filtering and numeric descending sort.",
             testCases: {
               create: [
@@ -489,6 +506,7 @@ async function main() {
                     { name: "React", status: "active", score: 85 },
                   ]),
                   isHidden: false,
+                  weight: 1.0,
                 },
                 {
                   input: JSON.stringify({
@@ -500,6 +518,152 @@ async function main() {
                   }),
                   expectedOutput: JSON.stringify([]),
                   isHidden: true,
+                  weight: 1.0,
+                },
+                {
+                  input: JSON.stringify({
+                    skills: [
+                      { name: "GraphQL", status: "active", score: 90 },
+                      { name: "Next.js", status: "active", score: 90 },
+                    ],
+                    minScore: 85,
+                  }),
+                  expectedOutput: JSON.stringify([
+                    { name: "GraphQL", status: "active", score: 90 },
+                    { name: "Next.js", status: "active", score: 90 },
+                  ]),
+                  isHidden: true,
+                  weight: 1.0,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // JavaScript ES6+ & Asynchronous Architecture Assessment (Versioned)
+  const jsAssessment = await prisma.assessment.create({
+    data: {
+      title: "JavaScript ES6+ & Asynchronous Architecture",
+      slug: "javascript-assessment",
+      categoryId: catFrontend.id,
+      domain: "Core Software Engineering",
+      difficulty: "INTERMEDIATE",
+      durationMinutes: 40,
+      passingThreshold: 75.0,
+      version: 1,
+      maxAttempts: 3,
+      cooldownHours: 24,
+      instructions: "Evaluates core JavaScript engineering: closures, promises, microtask queue execution, immutability, and asynchronous data transformation. Features objective questions and a sandboxed coding problem evaluated against hidden test cases.",
+      skills: {
+        create: [
+          { skillId: skillJS.id, weight: 1.0 },
+        ],
+      },
+      questions: {
+        create: [
+          {
+            type: "MULTIPLE_CHOICE",
+            questionText: "In the JavaScript Event Loop, which queue takes priority for execution immediately after the current synchronous execution stack is empty?",
+            optionsJson: JSON.stringify([
+              "Macrotask Queue (setTimeout, setInterval)",
+              "Microtask Queue (Promise.then, queueMicrotask)",
+              "I/O Poll Queue",
+              "Idle/Check Phase"
+            ]),
+            correctAnswersJson: JSON.stringify(["Microtask Queue (Promise.then, queueMicrotask)"]),
+            points: 15,
+            explanation: "All microtasks in the microtask queue are drained before the next macrotask is dequeued.",
+          },
+          {
+            type: "MULTIPLE_SELECT",
+            questionText: "Select all JavaScript Array methods that mutate the original array in-place:",
+            optionsJson: JSON.stringify([
+              "splice()",
+              "sort()",
+              "slice()",
+              "concat()",
+              "push()"
+            ]),
+            correctAnswersJson: JSON.stringify(["splice()", "sort()", "push()"]),
+            points: 15,
+            explanation: "splice, sort, and push mutate the array in-place, whereas slice and concat return shallow copies.",
+          },
+          {
+            type: "SHORT_ANSWER",
+            questionText: "Which ES6 syntax operator (...) is used to expand iterables like arrays into individual elements or function arguments?",
+            correctAnswersJson: JSON.stringify(["spread", "spread operator", "..."]),
+            points: 15,
+            explanation: "The spread operator (...) expands an iterable into elements.",
+          },
+          {
+            type: "CODING",
+            questionText: "Implement a function `aggregateSkillMetrics(attempts)` that takes an array of attempt objects `{ skill: string, score: number, passed: boolean }` and returns an object `{ totalAttempts: number, averageScore: number, passedCount: number, passRate: number }`, where averageScore and passRate (0 to 100 percentage) are rounded to 1 decimal place. Return 0 for averages if attempts is empty.",
+            starterCode: `function aggregateSkillMetrics(attempts) {
+  if (!attempts || attempts.length === 0) {
+    return { totalAttempts: 0, averageScore: 0, passedCount: 0, passRate: 0 };
+  }
+  const total = attempts.length;
+  const passed = attempts.filter(a => a.passed).length;
+  const sumScore = attempts.reduce((acc, a) => acc + a.score, 0);
+  return {
+    totalAttempts: total,
+    averageScore: Math.round((sumScore / total) * 10) / 10,
+    passedCount: passed,
+    passRate: Math.round((passed / total) * 1000) / 10
+  };
+}`,
+            correctAnswersJson: JSON.stringify(["// reference implementation"]),
+            language: "javascript",
+            points: 55,
+            explanation: "Requires array aggregation, rounding to 1 decimal place, and empty array handling.",
+            testCases: {
+              create: [
+                {
+                  input: JSON.stringify({
+                    attempts: [
+                      { skill: "JavaScript", score: 80, passed: true },
+                      { skill: "JavaScript", score: 90, passed: true },
+                      { skill: "JavaScript", score: 40, passed: false },
+                    ],
+                  }),
+                  expectedOutput: JSON.stringify({
+                    totalAttempts: 3,
+                    averageScore: 70,
+                    passedCount: 2,
+                    passRate: 66.7,
+                  }),
+                  isHidden: false,
+                  weight: 1.0,
+                },
+                {
+                  input: JSON.stringify({ attempts: [] }),
+                  expectedOutput: JSON.stringify({
+                    totalAttempts: 0,
+                    averageScore: 0,
+                    passedCount: 0,
+                    passRate: 0,
+                  }),
+                  isHidden: true,
+                  weight: 1.0,
+                },
+                {
+                  input: JSON.stringify({
+                    attempts: [
+                      { skill: "React", score: 95, passed: true },
+                      { skill: "React", score: 85, passed: true },
+                    ],
+                  }),
+                  expectedOutput: JSON.stringify({
+                    totalAttempts: 2,
+                    averageScore: 90,
+                    passedCount: 2,
+                    passRate: 100,
+                  }),
+                  isHidden: true,
+                  weight: 1.0,
                 },
               ],
             },

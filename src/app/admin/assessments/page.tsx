@@ -12,17 +12,27 @@ export default async function AdminAssessmentsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ochre-700">
-          <BookOpenCheck className="w-3.5 h-3.5" />
-          <span>Evaluation Engine</span>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ochre-700">
+            <BookOpenCheck className="w-3.5 h-3.5" />
+            <span>Evaluation Engine</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-forest-950 mt-1">
+            Assessment Bank & Hidden Test Suites
+          </h1>
+          <p className="text-xs text-stone-500 mt-1 max-w-2xl">
+            Multi-domain questions and isolated sandboxed tests with server-side validation.
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-display font-bold text-forest-950 mt-1">
-          Assessment Bank & Hidden Test Suites
-        </h1>
-        <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-          Multi-domain questions and isolated sandboxed tests with server-side validation.
-        </p>
+
+        <a
+          href="/admin/assessments/reviews"
+          className="px-4 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+        >
+          <ShieldCheck className="w-4 h-4 text-ochre-300" />
+          <span>Human Review Queue</span>
+        </a>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
