@@ -520,7 +520,7 @@ export function JobCreationWizardClient() {
                 Explicit Recruiter Review & Publication Approval
               </span>
               <p className="text-stone-600 leading-relaxed text-[11px]">
-                I affirm that I have personally reviewed this job specification, skill requirements, and weighting hierarchy. Under SkillChain's human-in-the-loop policy, AI drafts are never published without explicit human recruiter confirmation.
+                I affirm that I have personally reviewed this job specification, skill requirements, and weighting hierarchy. Under SkillChain&apos;s human-in-the-loop policy, AI drafts are never published without explicit human recruiter confirmation.
               </p>
             </div>
           </label>
