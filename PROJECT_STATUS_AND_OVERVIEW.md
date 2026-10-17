@@ -4,7 +4,7 @@
 > **Team:** Beast Coders  
 > **Blockchain:** Polygon Amoy Testnet (`Chain ID: 80002`)  
 > **Smart Contract Address:** `0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4`  
-> **Deployment Status:** ✅ **100% Fully Built & Verified** (58/58 Routes, Database, Smart Contract, Sandboxed Runner & 25 Unit/Integration Tests Passing)  
+> **Deployment Status:** ✅ **100% Fully Built & Verified** (58/58 Routes, Database, Smart Contract, Sandboxed Runner, Recruitment Module & 37 Vitest + 9 Hardhat Tests Passing = 46 Total Tests)  
 > **Local Server:** `http://localhost:3000` (Running)
 
 ---
@@ -43,9 +43,9 @@ SkillChain creates an immutable bridge between academic institutions, students, 
 | **10. Public Pages (8 Routes)** | **100%** | ✅ Done | Landing hero with live on-chain preview, features, how-it-works, university specs, employer specs, public job board, public credential verification, and student skill passport. | `src/app/page.tsx`<br>`src/app/verify/[credentialId]/page.tsx`<br>`src/app/skills/[publicSlug]/page.tsx` |
 | **11. Student Portal (10 Routes)** | **100%** | ✅ Done | Live dashboard, skill passport QR generator, GitHub README badge markdown, degree verification cards, multi-domain assessments catalog, live coding sandbox attempt runner, job applications. | `src/app/student/dashboard/page.tsx`<br>`src/app/student/passport/page.tsx`<br>`src/app/student/attempts/[attemptId]/page.tsx` |
 | **12. University Portal (7 Routes)** | **100%** | ✅ Done | Institutional dashboard, student registry, 4-step cryptographic issuance wizard, CSV batch issuance with transaction reconciliation, issuer authorization management, audit trail. | `src/app/university/dashboard/page.tsx`<br>`src/app/university/credentials/issue/page.tsx`<br>`src/app/university/issuance-batches/page.tsx` |
-| **13. Recruiter Portal (9 Routes)** | **100%** | ✅ Done | Recruiter dashboard, natural-language AI job description generator, candidate discovery with filterable 5-tier evidence criteria, candidate deep-dive with explainable match score, AI interview report review with HR sign-off. | `src/app/recruiter/jobs/new/page.tsx`<br>`src/app/recruiter/candidates/page.tsx`<br>`src/app/recruiter/candidates/[studentId]/page.tsx`<br>`src/app/recruiter/reports/page.tsx` |
+| **13. Recruiter Portal (9 Routes)** | **100%** | ✅ Done | Natural-language AI job generator with Zod schema validation & manual fallback templates (Frontend, Backend, Fullstack). Weighted skill requirements (1.0x - 5.0x), explicit recruiter approval gate, candidate multi-tier search (Assessment, Degree, Project, Self-declared), deterministic 5-tier explainable match engine (100% / 95% / 70% / 35% / 0%), actionable skill-gap reports with direct assessment remediation links, interactive candidate deep-dive with role switcher, modern interview scheduler modal, full hiring stage transitions (`APPLIED` to `SELECTED`), and AI interview summaries with mandatory HR review & sign-off. | `src/app/recruiter/jobs/new/JobCreationWizardClient.tsx`<br>`src/app/recruiter/candidates/CandidateSearchClient.tsx`<br>`src/app/recruiter/candidates/[studentId]/CandidateDetailClient.tsx`<br>`src/lib/matching/engine.ts`<br>`src/app/recruiter/reports/page.tsx` |
 | **14. Platform Admin Portal (9 Routes)** | **100%** | ✅ Done | System health monitoring, university issuer KYC approval, skill taxonomy management, assessment moderation, human review queue, platform audit logs, and smart contract configuration. | `src/app/admin/dashboard/page.tsx`<br>`src/app/admin/assessments/reviews/page.tsx`<br>`src/app/admin/audit/page.tsx` |
-| **15. Test Coverage & Build Quality** | **100%** | ✅ Done | 9/9 Hardhat smart contract tests pass, **25/25 Vitest integration & unit tests pass**, Next.js build passes with 0 compilation errors across all 58 static and dynamic routes. | `test/unit/assessments.test.ts`<br>`test/unit/services.test.ts`<br>`test/unit/blockchain.test.ts`<br>`test/SkillChainCredentialRegistry.test.js` |
+| **15. Test Coverage & Build Quality** | **100%** | ✅ Done | 9/9 Hardhat smart contract tests pass, **37/37 Vitest integration & unit tests pass** (across `services.test.ts`, `blockchain.test.ts`, `assessments.test.ts`, and `recruiter.test.ts`), Next.js production build compiles with 0 errors across all 58 routes. | `test/unit/recruiter.test.ts`<br>`test/unit/assessments.test.ts`<br>`test/unit/services.test.ts`<br>`test/unit/blockchain.test.ts`<br>`test/SkillChainCredentialRegistry.test.js` |
 
 ---
 
@@ -61,7 +61,7 @@ SkillChain creates an immutable bridge between academic institutions, students, 
 | **AI Integration** | **Provider-Independent AI Layer, Zod Schemas** | Prompt-to-job wizard, interview transcript summary & citations |
 | **Code Execution Sandbox** | **Isolated Subprocess Provider + Judge0 API Client** | Out-of-process execution, zero web server exposure, stripped env, memory cap & 2.5s timeout |
 | **Assessment Engine** | **Server-Side Scoring, Authoritative Timers, Proctoring Engine** | Objective questions, coding questions, hidden test cases, human review queue |
-| **Testing** | **Hardhat Tests, Vitest 3.2** | 9 smart contract tests, 25 comprehensive service & integration tests |
+| **Testing** | **Hardhat Tests, Vitest 3.2** | 9 smart contract tests, 37 comprehensive service & integration tests (46 total) |
 
 ---
 
@@ -172,7 +172,7 @@ SkillChain creates an immutable bridge between academic institutions, students, 
   9 passing (384ms)
 ```
 
-### 2. Vitest Core Services & Assessment Integration Tests (`npm run test`)
+### 2. Vitest Core Services, Assessment & Recruiter Integration Tests (`npm run test`)
 ```
  ✓ test/unit/services.test.ts (7 tests) 24ms
    ✓ SkillChain Core Services Unit Tests > 1. Evidence-Typed Candidate Match Engine > Grants highest score and tier for proctored assessments and university degrees
@@ -182,6 +182,20 @@ SkillChain creates an immutable bridge between academic institutions, students, 
    ✓ SkillChain Core Services Unit Tests > 2. Cryptographic Commitment Hasher & Tamper Detection > Fails verification if academic record has been tampered with
    ✓ SkillChain Core Services Unit Tests > 3. AI Provider Layer & Structured Schema Validation > Generates valid job draft matching Zod schema
    ✓ SkillChain Core Services Unit Tests > 3. AI Provider Layer & Structured Schema Validation > Generates structured interview report matching schema with human review flag
+
+ ✓ test/unit/recruiter.test.ts (12 tests) 40ms
+   ✓ SkillChain Recruitment Module Integration Tests > 1. Natural-Language Job Generation & Validated Structured AI Outputs > Produces a Zod-validated structured job draft from natural language prompt
+   ✓ SkillChain Recruitment Module Integration Tests > 1. Natural-Language Job Generation & Validated Structured AI Outputs > Provides robust manual fallback templates when AI provider is unavailable
+   ✓ SkillChain Recruitment Module Integration Tests > 2. Deterministic 5-Tier Matching Engine & Evidence Differentiation > Grants 100% credit for assessment-verified skills and 95% for academic degree evidence
+   ✓ SkillChain Recruitment Module Integration Tests > 2. Deterministic 5-Tier Matching Engine & Evidence Differentiation > Penalizes unverified self-declared skills (35%) and missing skills (0%)
+   ✓ SkillChain Recruitment Module Integration Tests > 2. Deterministic 5-Tier Matching Engine & Evidence Differentiation > Accurately applies custom skill weights to prioritize critical proficiencies
+   ✓ SkillChain Recruitment Module Integration Tests > 3. Skill-Gap Reporting & Actionable Remediation > Generates comprehensive skill gaps distinguishing MISSING and UNVERIFIED_SELF_DECLARED
+   ✓ SkillChain Recruitment Module Integration Tests > 3. Skill-Gap Reporting & Actionable Remediation > Reports zero skill gaps when all required skills are verified or backed by projects
+   ✓ SkillChain Recruitment Module Integration Tests > 4. Hiring Stages & Human-In-The-Loop Decision Architecture > Requires human recruiter confirmation before publishing job postings
+   ✓ SkillChain Recruitment Module Integration Tests > 4. Hiring Stages & Human-In-The-Loop Decision Architecture > Maintains strict audit trail of candidate application stage progression
+   ✓ SkillChain Recruitment Module Integration Tests > 4. Hiring Stages & Human-In-The-Loop Decision Architecture > Enforces human review on AI interview summaries without automated biometric decisions
+   ✓ SkillChain Recruitment Module Integration Tests > 5. Candidate Search & Multi-Tier Verification Filtering > Filters candidates strictly by evidence tier
+   ✓ SkillChain Recruitment Module Integration Tests > 5. Candidate Search & Multi-Tier Verification Filtering > Performs multi-attribute keyword and skill search across candidates
 
  ✓ test/unit/blockchain.test.ts (5 tests) 88ms
    ✓ SkillChain Blockchain & Credential Service Tests > 1. Viem Public & Wallet Client Initialization > Initializes client with correct Polygon Amoy chain configuration
@@ -205,8 +219,8 @@ SkillChain creates an immutable bridge between academic institutions, students, 
    ✓ SkillChain Assessment Module Integration Tests > 5. Human Review & Skill Credential Issuance Gates > Issues verifiable credential once human assessor reviews and APPROVES the attempt
    ✓ SkillChain Assessment Module Integration Tests > 5. Human Review & Skill Credential Issuance Gates > Withholds credential if human assessor REJECTS the attempt for integrity violation
 
- Test Files  3 passed (3)
-      Tests  25 passed (25)
+ Test Files  4 passed (4)
+      Tests  37 passed (37)
 ```
 
 ---
@@ -244,6 +258,23 @@ The demo switcher at the top of the screen allows testing all roles immediately:
 2. Verify that the newly earned skill badge is listed under **Tier 2: Assessment-Verified Skills**.
 3. Click the badge link (`/verify/[credentialId]`) to inspect the real-time cryptographic SHA-256 commitment and tamper detection match.
 
+### Walkthrough 4: Recruiter AI Jobs, Candidate Matching & Interview Scheduling (Recruiter)
+1. Switch to **`Recruiter: Elena Rostova (Stripe)`** persona.
+2. Navigate to **Post a Job** (`/recruiter/jobs/new`):
+   - Enter a prompt like *"Frontend engineer proficient in React, TypeScript, and modern state architecture"* or click a **Manual Fallback Preset** (*Frontend*, *Backend*, *Fullstack*).
+   - Adjust requirement skill weights (e.g. React 4.0x, TypeScript 3.0x), set minimum score thresholds, and check the mandatory **Recruiter Approval Gate**.
+   - Click **Approve & Publish Job Posting**.
+3. Navigate to **Candidate Directory** (`/recruiter/candidates`):
+   - Filter candidates by verification tier (*All*, *Assessment-Verified*, *Degree-Verified*, *Project-Backed*, *Self-Declared*).
+   - Select your target job in the live evaluator dropdown to preview real-time candidate alignment scores.
+4. Open a candidate deep-dive profile (e.g. `/recruiter/candidates/cmvcfbro00033rqs2owumjoe5` for Alex Rivera):
+   - Review the **Deterministic 5-Tier Evidence Breakdown** (Assessment 100%, Degree 95%, Project 70%, Self-Declared 35%, Missing 0%).
+   - Inspect the **Skill-Gap Report**: see missing or unverified skills and direct links to recommended SkillChain proctored assessments.
+   - Click **Schedule Interview** to launch the scheduling modal, configure date/time, timezone, meeting room URL, and focus notes, then confirm with candidate consent.
+5. Navigate to **AI Interview Reports** (`/recruiter/reports`):
+   - Review AI transcript synthesis with evidence quotes and suggested follow-ups.
+   - Record explicit **HR Human Decision** (`APPROVE`, `NEEDS_MORE_INFO`, `REJECT`) with notes to finalize the hiring pipeline.
+
 ---
 
 ## 📁 Repository Directory Structure
@@ -259,6 +290,7 @@ skillchain/
 │   └── unit/
 │       ├── assessments.test.ts                # Assessment integration tests (13/13 pass)
 │       ├── blockchain.test.ts                 # RPC retry & client tests (5/5 pass)
+│       ├── recruiter.test.ts                  # Recruitment module integration tests (12/12 pass)
 │       └── services.test.ts                   # Matching, AI, & hasher tests (7/7 pass)
 ├── prisma/
 │   ├── schema.prisma                          # 25+ relational models with assessment versioning & proctoring
@@ -303,7 +335,7 @@ skillchain/
 
 ## 🏆 Summary
 - **Total Work Completed:** 100%
-- **All Core Features:** Functioning with real database state, isolated sandbox execution, and cryptographic verification
-- **Total Automated Tests:** **34 passing tests** (9 Hardhat + 25 Vitest)
+- **All Core Features:** Functioning with real database state, isolated sandbox execution, cryptographic verification, and end-to-end recruiter matching
+- **Total Automated Tests:** **46 passing tests** (9 Hardhat + 37 Vitest across 4 test suites)
 - **Production Build:** Passes with 0 errors across 58 routes
 - **Ready for Hackathon Demo:** Yes! Everything is testable locally at `http://localhost:3000` with zero configuration required.
