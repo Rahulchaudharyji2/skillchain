@@ -59,7 +59,15 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password, role: activeTab }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError(`Server returned non-JSON response (${res.status}). Please try again.`);
+        return;
+      }
+
       if (data.success) {
         router.push(data.redirectPath || "/");
         router.refresh();
@@ -121,7 +129,15 @@ export default function LoginPage() {
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError(`Server returned non-JSON response (${res.status}). Please try again.`);
+        return;
+      }
+
       if (data.success) {
         router.push(data.redirectPath || "/student/dashboard");
         router.refresh();
