@@ -1,0 +1,712 @@
+// SkillChain Database Schema
+// Modular Monolith Architecture: Identity, Skills, Credentials, Assessments, Recruitment, Interviews, Audit
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// 1. IDENTITY & ORGANIZATIONS
+// -------------------------------------------------------------
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String
+  role           String    @default("STUDENT") // STUDENT | UNIVERSITY_ADMIN | ISSUER | RECRUITER | ADMIN
+  walletAddress  String?
+  avatarUrl      String?
+  clerkId        String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  studentProfile       StudentProfile?
+  organizationMembers  OrganizationMember[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  createdJobs          Job[]                  @relation("JobCreator")
+  interviewParticipants InterviewParticipant[]
+  reviewedAttempts     AssessmentReview[]     @relation("Reviewer")
+  reviewedReports      InterviewReport[]      @relation("ReportReviewer")
+  interviewFeedbacks   InterviewFeedback[]
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        String   // UNIVERSITY | EMPLOYER
+  verified    Boolean  @default(false)
+  logoUrl     String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members              OrganizationMember[]
+  universityProfile    UniversityProfile?
+  employerProfile      EmployerProfile?
+  issuers              Issuer[]
+  credentials          Credential[]
+  jobs                 Job[]
+  shortlists           CandidateShortlist[]
+  billingConfiguration BillingConfiguration?
+  payments             Payment[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String       @default("MEMBER") // ADMIN | ISSUER | RECRUITER | MEMBER
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model UniversityProfile {
+  id                  String       @id @default(cuid())
+  organizationId      String       @unique
+  domain              String
+  accreditationDetails String?
+  country             String       @default("United States")
+  issuerAddress       String?
+  verifiedAt          DateTime?
+
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model EmployerProfile {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  industry       String
+  companySize    String?      // e.g. "50-250", "1000+"
+  description    String?
+  headquarters   String?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Issuer {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?
+  walletAddress  String
+  department     String
+  isAuthorized   Boolean      @default(true)
+  registeredTx   String?
+  registeredAt   DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  credentials    Credential[]
+}
+
+model StudentProfile {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  headline           String?
+  bio                String?
+  universityName     String?
+  degree             String?
+  graduationYear     Int?
+  gpa                Float?
+  githubUrl          String?
+  linkedinUrl        String?
+  portfolioUrl       String?
+  publicPassportSlug String    @unique
+  isPassportPublic   Boolean   @default(true)
+  allowRecruiterContact Boolean @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentSkills      StudentSkill[]
+  projects           Project[]
+  credentials        Credential[]
+  assessmentAttempts AssessmentAttempt[]
+  applications       Application[]
+  savedJobs          SavedJob[]
+  shortlists         CandidateShortlist[]
+}
+
+// -------------------------------------------------------------
+// 2. SKILLS & EVIDENCE
+// -------------------------------------------------------------
+
+model SkillCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  icon        String?
+  description String?
+
+  skills      Skill[]
+  assessments Assessment[]
+}
+
+model Skill {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  categoryId  String
+  description String?
+
+  category    SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  studentSkills StudentSkill[]
+  assessmentSkills AssessmentSkill[]
+  jobRequirements  JobSkillRequirement[]
+}
+
+model StudentSkill {
+  id                   String          @id @default(cuid())
+  studentProfileId     String
+  skillId              String
+  proficiencyLevel     String          @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED | EXPERT
+  verifiedByAssessment Boolean         @default(false)
+  verifiedByDegree     Boolean         @default(false)
+  isSelfDeclared       Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+
+  studentProfile       StudentProfile  @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  skill                Skill           @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  evidences            SkillEvidence[]
+
+  @@unique([studentProfileId, skillId])
+}
+
+model Project {
+  id               String          @id @default(cuid())
+  studentProfileId String
+  title            String
+  description      String
+  repoUrl          String?
+  liveUrl          String?
+  techStack        String          // Comma-separated or JSON string
+  highlights       String?
+  createdAt        DateTime        @default(now())
+
+  studentProfile   StudentProfile  @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  evidences        SkillEvidence[]
+}
+
+model SkillEvidence {
+  id             String        @id @default(cuid())
+  studentSkillId String
+  evidenceType   String        // UNIVERSITY_DEGREE | ASSESSMENT | PROJECT | SELF_DECLARED
+  title          String
+  description    String?
+  proofUrl       String?
+  score          Float?
+  credentialId   String?
+  projectId      String?
+  createdAt      DateTime      @default(now())
+
+  studentSkill   StudentSkill  @relation(fields: [studentSkillId], references: [id], onDelete: Cascade)
+  credential     Credential?   @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+}
+
+// -------------------------------------------------------------
+// 3. CREDENTIALS & ON-CHAIN REGISTRY
+// -------------------------------------------------------------
+
+model Credential {
+  id               String                  @id @default(cuid())
+  credId           String                  @unique // On-chain bytes32 or hex identifier
+  studentProfileId String
+  issuerId         String?
+  organizationId   String
+  title            String
+  credentialType   String                  // DEGREE | DIPLOMA | CERTIFICATE | SKILL_BADGE
+  degreeName       String?
+  fieldOfStudy     String?
+  grade            String?
+  issuanceDate     DateTime                @default(now())
+  expirationDate   DateTime?
+  commitment       String                  // Cryptographic SHA-256 hash of payload + salt
+  signature        String?                 // Cryptographic signature from issuer
+  txHash           String?                 // Blockchain transaction hash on Polygon Amoy
+  blockNumber      Int?
+  status           String                  @default("ACTIVE") // DRAFT | PENDING | SUBMITTED | CONFIRMED | ACTIVE | SUSPENDED | REVOKED | FAILED
+  revocationReason String?
+  metadataUri      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  studentProfile   StudentProfile          @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  issuer           Issuer?                 @relation(fields: [issuerId], references: [id], onDelete: SetNull)
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statusEvents     CredentialStatusEvent[]
+  shares           CredentialShare[]
+  verificationEvents VerificationEvent[]
+  skillEvidences   SkillEvidence[]
+  assessmentResult AssessmentResult?
+}
+
+model CredentialStatusEvent {
+  id             String     @id @default(cuid())
+  credentialId   String
+  previousStatus String
+  newStatus      String
+  actorId        String?
+  reason         String?
+  txHash         String?
+  createdAt      DateTime   @default(now())
+
+  credential     Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+}
+
+model CredentialShare {
+  id             String     @id @default(cuid())
+  credentialId   String
+  shareToken     String     @unique
+  recipientEmail String?
+  viewCount      Int        @default(0)
+  expiresAt      DateTime?
+  isRevoked      Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+
+  credential     Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+}
+
+model VerificationEvent {
+  id                 String     @id @default(cuid())
+  credentialId       String
+  verifierIpHash     String?
+  userAgent          String?
+  verificationResult String     // VALID | REVOKED | SUSPENDED | TAMPERED
+  checkedOnChain     Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+
+  credential         Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 4. ASSESSMENTS & CODE EXECUTION
+// -------------------------------------------------------------
+
+model Assessment {
+  id               String             @id @default(cuid())
+  title            String
+  slug             String             @unique
+  categoryId       String
+  domain           String
+  difficulty       String             // BEGINNER | INTERMEDIATE | ADVANCED
+  durationMinutes  Int                @default(45)
+  passingThreshold Float              @default(70.0) // Percentage required to pass
+  version          Int                @default(1)
+  instructions     String
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+
+  category         SkillCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  skills           AssessmentSkill[]
+  questions        Question[]
+  attempts         AssessmentAttempt[]
+}
+
+model AssessmentSkill {
+  id           String     @id @default(cuid())
+  assessmentId String
+  skillId      String
+  weight       Float      @default(1.0)
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, skillId])
+}
+
+model Question {
+  id                 String       @id @default(cuid())
+  assessmentId       String
+  type               String       // MULTIPLE_CHOICE | MULTIPLE_SELECT | SHORT_ANSWER | CODING
+  questionText       String
+  optionsJson        String?      // JSON array of options for MCQs
+  correctAnswersJson String       // JSON array or string of correct answers (SERVER ONLY)
+  starterCode        String?      // Template code for candidates
+  language           String?      // javascript | typescript | python | sql
+  points             Float        @default(10.0)
+  explanation        String?
+
+  assessment         Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  testCases          TestCase[]
+  submissions        Submission[]
+}
+
+model TestCase {
+  id             String   @id @default(cuid())
+  questionId     String
+  input          String
+  expectedOutput String
+  isHidden       Boolean  @default(false)
+  weight         Float    @default(1.0)
+
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model AssessmentAttempt {
+  id               String            @id @default(cuid())
+  assessmentId     String
+  studentProfileId String
+  status           String            @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | GRADED | FLAGGED | APPEALED
+  score            Float?
+  passed           Boolean           @default(false)
+  startedAt        DateTime          @default(now())
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  version          Int               @default(1)
+
+  assessment       Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile    @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  submissions      Submission[]
+  proctoringEvents ProctoringEvent[]
+  assessmentResult AssessmentResult?
+  reviews          AssessmentReview[]
+}
+
+model Submission {
+  id               String            @id @default(cuid())
+  attemptId        String
+  questionId       String
+  studentAnswer    String?           // For MCQs / Short answers
+  codeSolution     String?           // For coding questions
+  language         String?
+  executionOutput  String?
+  passedTestCases  Int               @default(0)
+  totalTestCases   Int               @default(0)
+  scoreEarned      Float             @default(0.0)
+
+  attempt          AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model ProctoringEvent {
+  id           String            @id @default(cuid())
+  attemptId    String
+  eventType    String            // TAB_SWITCH | FULLSCREEN_EXIT | FOCUS_LOST | TIMEOUT
+  metadata     String?           // JSON details (timestamp, window dimensions, etc.)
+  timestamp    DateTime          @default(now())
+
+  attempt      AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model AssessmentResult {
+  id                   String            @id @default(cuid())
+  attemptId            String            @unique
+  totalScore           Float
+  maxScore             Float
+  percentageScore      Float
+  verifiedSkillIssued  Boolean           @default(false)
+  credentialId         String?           @unique
+  feedback             String?
+  createdAt            DateTime          @default(now())
+
+  attempt              AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  credential           Credential?       @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+}
+
+model AssessmentReview {
+  id         String            @id @default(cuid())
+  attemptId  String
+  reviewerId String
+  decision   String            // APPROVED | REJECTED | DISMISSED
+  comments   String
+  resolvedAt DateTime          @default(now())
+
+  attempt    AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  reviewer   User              @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 5. RECRUITMENT & CANDIDATE MATCHING
+// -------------------------------------------------------------
+
+model Job {
+  id                  String                @id @default(cuid())
+  organizationId      String
+  createdById         String
+  title               String
+  slug                String                @unique
+  overview            String
+  responsibilitiesJson String               // JSON array of strings
+  requiredSkillsJson  String                // JSON array of required skill names
+  preferredSkillsJson String?               // JSON array of preferred skill names
+  seniorityLevel      String                // ENTRY | JUNIOR | MID | SENIOR | LEAD
+  location            String
+  workArrangement     String                @default("REMOTE") // REMOTE | HYBRID | ONSITE
+  compensationRange   String?               // e.g. "$90,000 - $120,000"
+  status              String                @default("PUBLISHED") // DRAFT | PUBLISHED | PAUSED | CLOSED
+  aiPromptUsed        String?               // Stored prompt if AI generated
+  aiGenerated         Boolean               @default(false)
+  version             Int                   @default(1)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy           User                  @relation("JobCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  requirements        JobSkillRequirement[]
+  applications        Application[]
+  savedByStudents     SavedJob[]
+}
+
+model JobSkillRequirement {
+  id                String  @id @default(cuid())
+  jobId             String
+  skillId           String
+  requiredLevel     String  @default("INTERMEDIATE") // BEGINNER | INTERMEDIATE | ADVANCED | EXPERT
+  weight            Float   @default(1.0)
+  minScoreThreshold Float?
+  mustBeVerified    Boolean @default(false)
+
+  job               Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill             Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+}
+
+model Application {
+  id                   String                     @id @default(cuid())
+  jobId                String
+  studentProfileId     String
+  currentStage         String                     @default("APPLIED") // APPLIED | UNDER_REVIEW | SHORTLISTED | INTERVIEW_SCHEDULED | INTERVIEW_COMPLETED | SELECTED | REJECTED | WITHDRAWN
+  appliedAt            DateTime                   @default(now())
+  matchScore           Float                      @default(0.0)
+  candidateNotes       String?
+  matchExplanationJson String?                    // JSON explanation of why candidate matched
+  updatedAt            DateTime                   @updatedAt
+
+  job                  Job                        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  studentProfile       StudentProfile             @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  stageEvents          ApplicationStageEvent[]
+  matchExplanation     CandidateMatchExplanation?
+  interviews           Interview[]
+
+  @@unique([jobId, studentProfileId])
+}
+
+model ApplicationStageEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  fromStage     String
+  toStage       String
+  actorId       String?
+  notes         String?
+  createdAt     DateTime    @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model SavedJob {
+  id               String         @id @default(cuid())
+  studentProfileId String
+  jobId            String
+  createdAt        DateTime       @default(now())
+
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  job              Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([studentProfileId, jobId])
+}
+
+model CandidateShortlist {
+  id               String         @id @default(cuid())
+  organizationId   String
+  studentProfileId String
+  notes            String?
+  createdAt        DateTime       @default(now())
+
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, studentProfileId])
+}
+
+model CandidateMatchExplanation {
+  id                    String      @id @default(cuid())
+  applicationId         String      @unique
+  deterministicScore    Float
+  matchingSkillsJson    String      // JSON array of matched verified & unverified skills
+  missingSkillsJson     String      // JSON array of missing skills
+  selfDeclaredOnlyJson  String      // JSON array of self-declared skills
+  evidenceBreakdownJson String      // Detailed breakdown by evidence source
+  rationale             String
+  createdAt             DateTime    @default(now())
+
+  application           Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 6. INTERVIEWS & AI SUMMARIES
+// -------------------------------------------------------------
+
+model Interview {
+  id                   String                 @id @default(cuid())
+  applicationId        String
+  scheduledAt          DateTime
+  durationMinutes      Int                    @default(45)
+  timeZone             String                 @default("America/New_York")
+  status               String                 @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED | RESCHEDULED
+  meetingUrl           String?
+  recordingConsentGiven Boolean               @default(false)
+  notes                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  application          Application            @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  participants         InterviewParticipant[]
+  consents             InterviewConsent[]
+  transcript           InterviewTranscript?
+  report               InterviewReport?
+  feedbacks            InterviewFeedback[]
+}
+
+model InterviewParticipant {
+  id          String    @id @default(cuid())
+  interviewId String
+  userId      String
+  role        String    // INTERVIEWER | CANDIDATE
+
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, userId])
+}
+
+model InterviewConsent {
+  id            String    @id @default(cuid())
+  interviewId   String
+  userId        String
+  consentGiven  Boolean   @default(false)
+  consentedAt   DateTime  @default(now())
+  policyVersion String    @default("v1.0")
+
+  interview     Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model InterviewTranscript {
+  id                 String    @id @default(cuid())
+  interviewId        String    @unique
+  rawTranscriptText  String
+  turnsJson          String    // JSON array of { speaker, text, timestamp }
+  isSimulated        Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+
+  interview          Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model InterviewReport {
+  id                        String             @id @default(cuid())
+  interviewId               String             @unique
+  summary                   String
+  competenciesJson          String             // JSON array of competency evidence
+  unansweredRequirementsJson String            // JSON array of unanswered requirements
+  limitationsJson           String             // JSON array of limitations
+  suggestedFollowUpsJson    String             // JSON array of suggested follow-up questions
+  humanReviewRequired       Boolean            @default(true)
+  reviewedById              String?
+  hrDecision                String?            // APPROVED | REJECTED | NEEDS_MORE_INFO
+  hrNotes                   String?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  interview                 Interview          @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  reviewedBy                User?              @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  evidences                 InterviewEvidence[]
+}
+
+model InterviewEvidence {
+  id         String          @id @default(cuid())
+  reportId   String
+  skill      String
+  quote      String
+  context    String
+  confidence Float           @default(0.9)
+
+  report     InterviewReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model InterviewFeedback {
+  id               String    @id @default(cuid())
+  interviewId      String
+  interviewerId    String
+  rating           Int       // 1-5 scale
+  qualitativeNotes String
+  submittedAt      DateTime  @default(now())
+
+  interview        Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  interviewer      User      @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// 7. PLATFORM, PAYMENTS & AUDIT
+// -------------------------------------------------------------
+
+model Payment {
+  id                String       @id @default(cuid())
+  organizationId    String
+  amount            Float
+  currency          String       @default("USD")
+  status            String       @default("COMPLETED") // PENDING | COMPLETED | FAILED | REFUNDED
+  providerReference String?
+  purpose           String       // EMPLOYER_ACCESS | PREMIUM_SUBSCRIPTION
+  createdAt         DateTime     @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model BillingConfiguration {
+  id                   String       @id @default(cuid())
+  organizationId       String       @unique
+  planTier             String       @default("PRO") // FREE | PRO | ENTERPRISE
+  maxJobPostings       Int          @default(25)
+  verifiedBadgeEnabled Boolean      @default(true)
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // CREDENTIAL | ASSESSMENT | APPLICATION | INTERVIEW | SYSTEM
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BackgroundJob {
+  id           String    @id @default(cuid())
+  jobType      String    // BLOCKCHAIN_SUBMIT | BLOCKCHAIN_CONFIRM | AI_TRANSCRIPT_SYNTHESIS | CODE_EXECUTION
+  payloadJson  String
+  status       String    @default("QUEUED") // QUEUED | PROCESSING | COMPLETED | FAILED
+  attempts     Int       @default(0)
+  errorDetails String?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+}
+
+model AuditLog {
+  id             String    @id @default(cuid())
+  userId         String?
+  organizationId String?
+  action         String    // e.g. "CREDENTIAL_ISSUED", "CANDIDATE_SHORTLISTED"
+  entityType     String    // Credential | Job | Application | Assessment
+  entityId       String?
+  detailsJson    String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+}

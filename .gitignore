@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing & Coverage
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+
+# Production
+/build
+
+# Hardhat
+artifacts/
+cache/
+
+# Local databases & env
+dev.db*
+.env*.local
+*.log
+
+# OS Files
+.DS_Store
+*.pem

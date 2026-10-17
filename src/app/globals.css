@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #FBF9F5;
+  --foreground: #1A2421;
+  --card: #FFFFFF;
+  --card-foreground: #1A2421;
+  --primary: #183D2F;
+  --primary-foreground: #FAF9F5;
+  --secondary: #F2EDE2;
+  --secondary-foreground: #183D2F;
+  --muted: #EFE9DC;
+  --muted-foreground: #5E6D66;
+  --accent: #D4A373;
+  --accent-foreground: #183D2F;
+  --border: #E8E2D5;
+  --ring: #183D2F;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  min-height: 100vh;
+}
+
+/* Custom premium scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F2EDE2;
+}
+::-webkit-scrollbar-thumb {
+  background: #C6B99E;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8FB4A1;
+}
+
+/* Glassmorphism and card elevation */
+.card-premium {
+  background: #FFFFFF;
+  border: 1px solid #E8E2D5;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(24, 61, 47, 0.04), 0 4px 12px -2px rgba(24, 61, 47, 0.03);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-premium:hover {
+  border-color: #D2C7B3;
+  box-shadow: 0 6px 20px -4px rgba(24, 61, 47, 0.08);
+}
+
+/* Institutional Badge */
+.seal-badge {
+  background: linear-gradient(135deg, #FAF4E5 0%, #F5E8C7 100%);
+  border: 1px solid #DEC589;
+  color: #7A5318;
+}
+
+/* Assessment code editor */
+.code-editor-area {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background-color: #0F1714;
+  color: #E2E8F0;
+}

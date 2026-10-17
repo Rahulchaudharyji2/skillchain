@@ -1,0 +1,93 @@
+export const REGISTRY_ABI = [
+  {
+    inputs: [
+      { internalType: "bytes32", name: "credId", type: "bytes32" },
+      { internalType: "bytes32", name: "commitment", type: "bytes32" },
+      { internalType: "address", name: "studentWallet", type: "address" },
+      { internalType: "string", name: "credentialTypeURI", type: "string" },
+    ],
+    name: "issueCredential",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "credId", type: "bytes32" },
+      { internalType: "string", name: "reason", type: "string" },
+    ],
+    name: "suspendCredential",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "bytes32", name: "credId", type: "bytes32" }],
+    name: "restoreCredential",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "credId", type: "bytes32" },
+      { internalType: "string", name: "reason", type: "string" },
+    ],
+    name: "revokeCredential",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "bytes32", name: "credId", type: "bytes32" }],
+    name: "getCredential",
+    outputs: [
+      { internalType: "uint8", name: "status", type: "uint8" },
+      { internalType: "bytes32", name: "commitment", type: "bytes32" },
+      { internalType: "address", name: "issuer", type: "address" },
+      { internalType: "address", name: "studentWallet", type: "address" },
+      { internalType: "uint64", name: "issuedAt", type: "uint64" },
+      { internalType: "uint64", name: "revokedAt", type: "uint64" },
+      { internalType: "string", name: "credentialTypeURI", type: "string" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "issuer", type: "address" }],
+    name: "isAuthorizedIssuer",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "issuer", type: "address" }],
+    name: "getIssuerInfo",
+    outputs: [
+      { internalType: "string", name: "institutionName", type: "string" },
+      { internalType: "string", name: "metadataURI", type: "string" },
+      { internalType: "bool", name: "isAuthorized", type: "bool" },
+      { internalType: "uint64", name: "registeredAt", type: "uint64" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "issuer", type: "address" },
+      { internalType: "string", name: "institutionName", type: "string" },
+      { internalType: "string", name: "metadataURI", type: "string" },
+    ],
+    name: "registerIssuer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "issuer", type: "address" }],
+    name: "removeIssuer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
