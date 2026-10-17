@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { submitCredentialStatusChangeOnChain } from "@/lib/blockchain/client";
+import { enqueueBlockchainJob } from "@/lib/blockchain/retries";
 import crypto from "crypto";
 
 export async function POST(
@@ -29,12 +31,18 @@ export async function POST(
     else if (action === "RESTORE") newStatus = "ACTIVE";
     else if (action === "REVOKE") newStatus = "REVOKED";
 
-    const txHash = "0x" + crypto.randomBytes(32).toString("hex");
+    // Submit on-chain status mutation via Viem to Polygon Amoy
+    const { txHash, simulated } = await submitCredentialStatusChangeOnChain({
+      credId: credential.credId as `0x${string}`,
+      action,
+      reason,
+    });
 
     const updated = await prisma.credential.update({
       where: { id },
       data: {
         status: newStatus,
+        txHash,
         revocationReason: action === "REVOKE" ? reason : undefined,
         statusEvents: {
           create: [
@@ -42,12 +50,22 @@ export async function POST(
               previousStatus: credential.status,
               newStatus,
               actorId: user.id,
-              reason: reason || `Status changed to ${newStatus}`,
+              reason: reason || `Status changed to ${newStatus}${simulated ? " (Polygon Amoy simulated node)" : ""}`,
               txHash,
             },
           ],
         },
       },
+    });
+
+    // Enqueue background tracking job
+    await enqueueBlockchainJob("BLOCKCHAIN_CONFIRM", {
+      credentialId: credential.id,
+      credIdHex: credential.credId as `0x${string}`,
+      commitment: credential.commitment as `0x${string}`,
+      credentialTypeURI: "https://skillchain.org/schemas/academic-degree/v1",
+      action,
+      reason,
     });
 
     // Record audit log

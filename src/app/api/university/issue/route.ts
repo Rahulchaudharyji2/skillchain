@@ -6,6 +6,8 @@ import {
   generateCredentialId,
   generateSalt,
 } from "@/lib/credentials/hasher";
+import { submitCredentialIssuanceOnChain } from "@/lib/blockchain/client";
+import { enqueueBlockchainJob } from "@/lib/blockchain/retries";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -69,8 +71,14 @@ export async function POST(req: NextRequest) {
 
     const commitment = generateCredentialCommitment(payload);
 
-    // Simulated / Authoritative Polygon Amoy Transaction
-    const txHash = "0x" + crypto.randomBytes(32).toString("hex");
+    // Submit on-chain via Viem to Polygon Amoy testnet (or simulated fallback if testnet key is not set)
+    const { txHash, simulated } = await submitCredentialIssuanceOnChain({
+      credId: credId as `0x${string}`,
+      commitment: commitment as `0x${string}`,
+      studentWallet: studentProfile.user.walletAddress || undefined,
+      credentialTypeURI: "https://skillchain.org/schemas/academic-degree/v1",
+    });
+
     const blockNumber = 12948200 + Math.floor(Math.random() * 500);
 
     const credential = await prisma.credential.create({
@@ -97,12 +105,24 @@ export async function POST(req: NextRequest) {
               previousStatus: "PENDING",
               newStatus: "ACTIVE",
               actorId: user.id,
-              reason: "Degree conferred and commitment anchored on Polygon Amoy",
+              reason: simulated
+                ? "Degree conferred and commitment anchored (Polygon Amoy simulated testnet node)"
+                : "Degree conferred and commitment anchored on Polygon Amoy",
               txHash,
             },
           ],
         },
       },
+    });
+
+    // Enqueue background tracking job for safe verification and retries
+    await enqueueBlockchainJob("BLOCKCHAIN_SUBMIT", {
+      credentialId: credential.id,
+      credIdHex: credId as `0x${string}`,
+      commitment: commitment as `0x${string}`,
+      studentWallet: studentProfile.user.walletAddress || undefined,
+      credentialTypeURI: "https://skillchain.org/schemas/academic-degree/v1",
+      action: "ISSUE",
     });
 
     // Also link as university degree verified skill evidence if matching skill exists

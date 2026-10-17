@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { verifyCredentialOnChain } from "@/lib/blockchain/client";
 import { formatDate } from "@/lib/utils";
+import { VerifyQrModal } from "./VerifyQrModal";
 
 interface VerifyPageProps {
   params: Promise<{ credentialId: string }>;
@@ -77,15 +78,40 @@ export default async function CredentialVerificationPage({ params }: VerifyPageP
   const isSuspended = credential.status === "SUSPENDED" || onChainStatus.status === "SUSPENDED";
   const isRevoked = credential.status === "REVOKED" || onChainStatus.status === "REVOKED";
 
+  // Record public verification audit event in database
+  try {
+    await prisma.verificationEvent.create({
+      data: {
+        credentialId: credential.id,
+        verificationResult: isActive ? "VALID" : isSuspended ? "SUSPENDED" : "REVOKED",
+        checkedOnChain: onChainStatus.verifiedOnChain,
+      },
+    });
+  } catch (logErr) {
+    console.warn("VerificationEvent record skipped:", (logErr as Error)?.message);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const verificationUrl = `${appUrl}/verify/${credential.credId}`;
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-forest-900 mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        <span>Back to Portal</span>
-      </Link>
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-forest-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Portal</span>
+        </Link>
+
+        <VerifyQrModal
+          credentialId={credential.credId}
+          verificationUrl={verificationUrl}
+          institutionName={credential.organization.name}
+          recipientName={credential.studentProfile.user.name}
+        />
+      </div>
 
       <div className="card-premium overflow-hidden border-2 border-cream-300">
         {/* Status Header Banner */}
