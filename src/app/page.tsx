@@ -343,23 +343,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-cream-300 bg-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-forest-900" />
-            <span className="font-display font-bold text-forest-950 text-sm">SkillChain</span>
-            <span className="text-xs text-stone-400">| Team Beast Coders</span>
-          </div>
-          <p className="text-xs text-stone-500">
-            Polygon Amoy Smart Contract:{" "}
-            <code className="text-forest-800 font-mono text-[11px]">
-              0x9A7B31b6b7c37BE75E4dE6a4EFa6E93C9E3917f4
-            </code>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -98,14 +98,20 @@ export function Sidebar({ role, user }: SidebarProps) {
   };
 
   const links = getLinks();
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  return (
-    <aside className="w-64 border-r border-cream-300 bg-cream-50/70 p-4 flex flex-col justify-between min-h-[calc(100vh-4rem)]">
+  // Close mobile drawer on route change
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const sidebarContent = (
+    <div className="flex flex-col justify-between h-full space-y-6">
       <div className="space-y-6">
         {/* User Card */}
-        <div className="p-3 rounded-xl bg-white border border-cream-300 shadow-sm">
+        <div className="p-3.5 rounded-2xl bg-white border border-cream-300 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-forest-900 text-cream-50 flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-forest-900 text-cream-50 flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0 shadow-xs">
               {user.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
@@ -124,7 +130,7 @@ export function Sidebar({ role, user }: SidebarProps) {
             <span className="font-semibold text-forest-800 uppercase tracking-wider">
               {role.replace("_", " ")}
             </span>
-            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">
               Verified Session
             </span>
           </div>
@@ -139,15 +145,15 @@ export function Sidebar({ role, user }: SidebarProps) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
                     ? "bg-forest-900 text-cream-50 shadow-sm"
                     : link.highlight
-                    ? "bg-ochre-100/70 text-ochre-900 border border-ochre-300/60 hover:bg-ochre-100"
-                    : "text-stone-600 hover:bg-cream-200/60 hover:text-forest-900"
+                    ? "bg-ochre-100/80 text-ochre-900 border border-ochre-300/70 hover:bg-ochre-100"
+                    : "text-stone-600 hover:bg-cream-200/70 hover:text-forest-900"
                 }`}
               >
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-3">
                   <IconComponent
                     className={`w-4 h-4 ${
                       isActive ? "text-ochre-300" : link.highlight ? "text-ochre-700" : "text-stone-400"
@@ -156,7 +162,7 @@ export function Sidebar({ role, user }: SidebarProps) {
                   <span>{link.label}</span>
                 </div>
                 {link.highlight && !isActive && (
-                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded bg-ochre-200 text-ochre-900 font-bold">
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-ochre-200 text-ochre-900 font-bold">
                     New
                   </span>
                 )}
@@ -167,15 +173,57 @@ export function Sidebar({ role, user }: SidebarProps) {
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 rounded-lg bg-cream-200/50 border border-cream-300/70 text-[11px] text-stone-500">
+      <div className="p-3.5 rounded-xl bg-cream-200/60 border border-cream-300 text-[11px] text-stone-500">
         <div className="flex items-center gap-1.5 font-semibold text-forest-900 mb-1">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
           <span>Polygon Amoy Connected</span>
         </div>
-        <p className="text-[10px] leading-relaxed">
+        <p className="text-[10px] leading-relaxed text-stone-600">
           Non-transferable soulbound credentials secured via SHA-256 commitments.
         </p>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile Portal Navigation Bar */}
+      <div className="md:hidden w-full bg-cream-100 border-b border-cream-300 px-4 py-2.5 flex items-center justify-between sticky top-16 z-20">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-forest-900 text-cream-50 flex items-center justify-center font-bold text-xs">
+            {user.name.charAt(0)}
+          </div>
+          <div className="min-w-0">
+            <span className="text-xs font-bold text-forest-950 block truncate max-w-[160px]">{user.name}</span>
+            <span className="text-[10px] text-stone-500 uppercase font-semibold">{role.replace("_", " ")}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="px-3 py-1.5 rounded-xl bg-forest-900 text-cream-50 text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+        >
+          <Layers className="w-3.5 h-3.5 text-ochre-300" />
+          <span>{mobileOpen ? "Close Menu" : "Portal Menu"}</span>
+        </button>
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-forest-950/40 backdrop-blur-sm animate-fade-in" onClick={() => setMobileOpen(false)}>
+          <div
+            className="w-72 max-w-[80vw] bg-cream-50 h-full p-4 overflow-y-auto shadow-2xl border-r border-cream-300 animate-slide-in-from-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden md:flex w-64 border-r border-cream-300 bg-cream-50/70 p-4 flex-col justify-between min-h-[calc(100vh-4rem)] flex-shrink-0">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

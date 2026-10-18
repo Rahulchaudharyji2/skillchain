@@ -109,9 +109,9 @@ export default async function StudentDashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           {/* Student Token Balance Display */}
-          <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+          <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
             <span>Profile Earned Tokens: <strong className="font-mono text-sm text-amber-800">{profile?.tokenBalance ?? 0}</strong></span>
           </div>
@@ -119,18 +119,18 @@ export default async function StudentDashboardPage() {
           <Link
             href={`/skills/${profile?.publicPassportSlug || "alex-rivera-passport"}`}
             target="_blank"
-            className="px-4 py-2.5 rounded-xl bg-white border border-cream-300 text-forest-900 hover:bg-cream-100 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+            className="px-3.5 py-2 rounded-xl bg-white border border-cream-300 text-forest-900 hover:bg-cream-100 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all"
           >
             <ExternalLink className="w-3.5 h-3.5 text-forest-700" />
-            <span>View Public Passport</span>
+            <span>Public Passport</span>
           </Link>
 
           <Link
             href="/student/passport"
-            className="px-4 py-2.5 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+            className="px-3.5 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all"
           >
             <QrCode className="w-3.5 h-3.5 text-ochre-300" />
-            <span>Passport & QR Code</span>
+            <span>Passport & QR</span>
           </Link>
         </div>
       </div>

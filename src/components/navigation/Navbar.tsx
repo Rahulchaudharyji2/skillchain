@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ShieldCheck, Search, QrCode, FileCheck, ArrowUpRight, LogIn } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DemoSwitcher } from "./DemoSwitcher";
+import { MobileNavbar } from "./MobileNavbar";
 import { MetaMaskWalletButton } from "@/components/blockchain/MetaMaskWalletButton";
 
 export async function Navbar() {
@@ -80,31 +81,43 @@ export async function Navbar() {
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
-          <MetaMaskWalletButton />
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="hidden sm:block">
+            <MetaMaskWalletButton />
+          </div>
 
           <Link
             href="/login"
-            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-semibold text-stone-700 hover:text-forest-900 hover:bg-stone-100 transition-all"
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-semibold text-stone-700 hover:text-forest-900 hover:bg-stone-100 transition-all"
             title="Institutional Login"
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>Login</span>
           </Link>
 
-          <DemoSwitcher
-            currentRole={user?.role || "STUDENT"}
-            userName={user?.name || "Alex Rivera"}
-            userEmail={user?.email || "alex.rivera@student.mit.edu"}
-          />
+          <div className="hidden sm:block">
+            <DemoSwitcher
+              currentRole={user?.role || "STUDENT"}
+              userName={user?.name || "Alex Rivera"}
+              userEmail={user?.email || "alex.rivera@student.mit.edu"}
+            />
+          </div>
 
           <Link
             href={getPortalLink()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 transition-all text-xs font-semibold shadow-sm"
+            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 transition-all text-xs font-semibold shadow-sm"
           >
             <span>Launch Portal</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-ochre-300" />
           </Link>
+
+          {/* Mobile Navigation Drawer Trigger */}
+          <MobileNavbar
+            userRole={user?.role || "STUDENT"}
+            userName={user?.name || "Alex Rivera"}
+            userEmail={user?.email || "alex.rivera@student.mit.edu"}
+            portalLink={getPortalLink()}
+          />
         </div>
       </div>
     </header>

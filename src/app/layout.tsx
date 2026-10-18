@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Navbar } from "@/components/navigation/Navbar";
+import { Footer } from "@/components/navigation/Footer";
 
 export const metadata: Metadata = {
   title: "SkillChain — Verifiable Skills, Trusted Hiring",
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className="antialiased bg-cream-50 text-forest-950 font-sans selection:bg-ochre-200 selection:text-forest-950 min-h-screen flex flex-col">
         <Navbar />
         <main className="flex-1 flex flex-col">{children}</main>
+        <Footer />
       </body>
     </html>
   );
