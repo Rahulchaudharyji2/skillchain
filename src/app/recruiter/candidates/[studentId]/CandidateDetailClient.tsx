@@ -87,6 +87,9 @@ interface CandidateDetailClientProps {
   candidateSkills: CandidateSkill[];
   publishedJobs: PublishedJob[];
   initialJobId?: string;
+  initialIsUnlocked?: boolean;
+  recruiterOrgTokens?: number;
+  studentTokensReceived?: number;
 }
 
 export function CandidateDetailClient({
@@ -94,10 +97,19 @@ export function CandidateDetailClient({
   candidateSkills,
   publishedJobs,
   initialJobId,
+  initialIsUnlocked = false,
+  recruiterOrgTokens = 50,
+  studentTokensReceived = 0,
 }: CandidateDetailClientProps) {
   const [selectedJobId, setSelectedJobId] = useState<string>(
     initialJobId || (publishedJobs.length > 0 ? publishedJobs[0].id : "")
   );
+
+  // Profile unlock state
+  const [isUnlocked, setIsUnlocked] = useState(initialIsUnlocked);
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [orgTokens, setOrgTokens] = useState(recruiterOrgTokens);
+  const [unlockMsg, setUnlockMsg] = useState<string | null>(null);
 
   // Shortlist state
   const [shortlisted, setShortlisted] = useState(false);
@@ -128,6 +140,33 @@ export function CandidateDetailClient({
   const match = selectedJob
     ? calculateCandidateMatch(requirements, candidateSkills)
     : null;
+
+  const handleUnlockProfile = async () => {
+    setUnlockLoading(true);
+    setUnlockMsg(null);
+    try {
+      const res = await fetch("/api/recruiter/unlock-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentProfileId: profile.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsUnlocked(true);
+        if (typeof data.organizationTokenBalance === "number") {
+          setOrgTokens(data.organizationTokenBalance);
+        }
+        setUnlockMsg(data.message || "Candidate full profile unlocked successfully!");
+      } else {
+        alert(data.error || "Failed to unlock profile");
+      }
+    } catch (err: any) {
+      console.error("Unlock error:", err);
+      alert("Error unlocking profile: " + (err.message || "Network error"));
+    } finally {
+      setUnlockLoading(false);
+    }
+  };
 
   const handleShortlist = async () => {
     setShortlistLoading(true);
@@ -181,16 +220,73 @@ export function CandidateDetailClient({
     }
   };
 
+  // Masked email & details if locked
+  const maskedEmail = profile.user.email.replace(/(.{2})(.*)(@.*)/, "$1•••$3");
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Back button */}
-      <Link
-        href="/recruiter/candidates"
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-forest-900 transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        <span>Back to Candidate Directory</span>
-      </Link>
+      {/* Top Banner / Navigation */}
+      <div className="flex items-center justify-between">
+        <Link
+          href="/recruiter/applications"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-forest-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Job Applicants</span>
+        </Link>
+
+        {/* Recruiter Token Balance Badge */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-forest-900 text-cream-50 text-xs font-semibold shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-ochre-300" />
+          <span>Recruiter Tokens: <strong className="text-ochre-300 font-mono text-sm">{orgTokens}</strong></span>
+        </div>
+      </div>
+
+      {/* Unlock Notice Banner if not unlocked */}
+      {!isUnlocked ? (
+        <div className="card-premium p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-900 inline-block">
+                🔒 Privacy-First Candidate Profile
+              </span>
+              <h3 className="text-sm font-bold text-forest-950">
+                Full Profile & 1:1 Interview Scheduling Locked
+              </h3>
+              <p className="text-xs text-stone-600 leading-relaxed max-w-xl">
+                You can review the applicant&apos;s verified test marks and score breakdown below.
+                To view complete contact details, GitHub/Portfolio links, and schedule a 1:1 interview,
+                unlock profile for <strong>5 Tokens</strong> (3 platform treasury + 2 tokens directly to student).
+              </p>
+            </div>
+
+            <button
+              onClick={handleUnlockProfile}
+              disabled={unlockLoading}
+              className="px-5 py-3 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 disabled:opacity-50 text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all flex-shrink-0"
+            >
+              {unlockLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-ochre-300" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-ochre-300" />
+              )}
+              <span>Unlock Profile (5 Tokens)</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-900 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>
+              <strong>Profile Unlocked:</strong> Full verified contact details and 1:1 interview scheduling are active. (5 tokens settled: 3 platform + 2 student)
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+            UNLOCKED
+          </span>
+        </div>
+      )}
 
       {/* Profile Header */}
       <div className="card-premium p-6 sm:p-8 bg-white border border-cream-300">
@@ -216,6 +312,10 @@ export function CandidateDetailClient({
                 {profile.universityName || "Independent Candidate"}{" "}
                 {profile.degree && `• ${profile.degree}`}
               </p>
+              <p className="text-xs font-mono text-stone-400 mt-0.5">
+                Email: {isUnlocked ? profile.user.email : maskedEmail}{" "}
+                {!isUnlocked && <span className="text-[10px] text-amber-600 font-semibold">(Masked)</span>}
+              </p>
             </div>
           </div>
 
@@ -240,21 +340,34 @@ export function CandidateDetailClient({
               <span>{shortlisted ? "Candidate Shortlisted" : "Shortlist Candidate"}</span>
             </button>
 
-            <button
-              onClick={() => setIsScheduleOpen(true)}
-              className="px-4 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-            >
-              {scheduledSuccess ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <Video className="w-3.5 h-3.5 text-ochre-300" />
-              )}
-              <span>{scheduledSuccess ? "Interview Scheduled" : "Schedule Interview"}</span>
-            </button>
+            {isUnlocked ? (
+              <button
+                onClick={() => setIsScheduleOpen(true)}
+                className="px-4 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                {scheduledSuccess ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Video className="w-3.5 h-3.5 text-ochre-300" />
+                )}
+                <span>{scheduledSuccess ? "Interview Scheduled" : "Schedule 1:1 Interview"}</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleUnlockProfile}
+                disabled={unlockLoading}
+                className="px-4 py-2 rounded-xl bg-amber-600 text-white hover:bg-amber-700 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                <span>Unlock to Schedule (5 Tokens)</span>
+              </button>
+            )}
           </div>
         </div>
 
-        <p className="text-xs text-stone-600 mt-4 leading-relaxed">{profile.bio}</p>
+        <p className="text-xs text-stone-600 mt-4 leading-relaxed">
+          {isUnlocked ? profile.bio : (profile.bio ? `${profile.bio.substring(0, 100)}... (Unlock profile to read full biography)` : "Candidate bio.")}
+        </p>
       </div>
 
       {/* Target Job Selector & Deterministic Engine */}

@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth/session";
 import { CandidateDetailClient } from "./CandidateDetailClient";
+
+export const dynamic = "force-dynamic";
 
 interface CandidateDetailPageProps {
   params: Promise<{ studentId: string }>;
@@ -14,8 +17,25 @@ export default async function CandidateDetailPage({
   const { studentId } = await params;
   const sp = searchParams ? await searchParams : {};
   const initialJobId = sp?.jobId;
+  const currentUser = await getCurrentUser();
 
-  const [profile, publishedJobs] = await Promise.all([
+  // Find recruiter org
+  let recruiterOrg = null;
+  if (currentUser) {
+    if (currentUser.organization?.id) {
+      recruiterOrg = await prisma.organization.findUnique({
+        where: { id: currentUser.organization.id },
+      });
+    } else {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: currentUser.id },
+        include: { organization: true },
+      });
+      recruiterOrg = membership?.organization || (await prisma.organization.findFirst({ where: { type: "EMPLOYER" } }));
+    }
+  }
+
+  const [profile, publishedJobs, unlockRecord] = await Promise.all([
     prisma.studentProfile.findUnique({
       where: { id: studentId },
       include: {
@@ -34,6 +54,16 @@ export default async function CandidateDetailPage({
       },
       orderBy: { createdAt: "desc" },
     }),
+    recruiterOrg
+      ? prisma.profileUnlock.findUnique({
+          where: {
+            organizationId_studentProfileId: {
+              organizationId: recruiterOrg.id,
+              studentProfileId: studentId,
+            },
+          },
+        })
+      : null,
   ]);
 
   if (!profile) {
@@ -97,6 +127,9 @@ export default async function CandidateDetailPage({
       candidateSkills={candidateSkills}
       publishedJobs={serializedJobs}
       initialJobId={initialJobId}
+      initialIsUnlocked={Boolean(unlockRecord)}
+      recruiterOrgTokens={recruiterOrg?.tokenBalance ?? 50}
+      studentTokensReceived={profile.tokenBalance}
     />
   );
 }

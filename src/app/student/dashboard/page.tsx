@@ -110,6 +110,12 @@ export default async function StudentDashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Student Token Balance Display */}
+          <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>Profile Earned Tokens: <strong className="font-mono text-sm text-amber-800">{profile?.tokenBalance ?? 0}</strong></span>
+          </div>
+
           <Link
             href={`/skills/${profile?.publicPassportSlug || "alex-rivera-passport"}`}
             target="_blank"

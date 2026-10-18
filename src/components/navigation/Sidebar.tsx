@@ -57,9 +57,9 @@ export function Sidebar({ role, user }: SidebarProps) {
         { label: "Recruiter Dashboard", href: "/recruiter/dashboard", icon: LayoutDashboard },
         { label: "Create Job with AI", href: "/recruiter/jobs/new", icon: Sparkles, highlight: true },
         { label: "Job Postings", href: "/recruiter/jobs", icon: Briefcase },
+        { label: "Job Applicants & Marks", href: "/recruiter/applications", icon: Send, highlight: true },
         { label: "Candidate Discovery", href: "/recruiter/candidates", icon: Search },
-        { label: "Pipeline & Matches", href: "/recruiter/applications", icon: Send },
-        { label: "Interviews", href: "/recruiter/interviews", icon: Video },
+        { label: "1:1 Interviews", href: "/recruiter/interviews", icon: Video },
         { label: "AI Interview Reports", href: "/recruiter/reports", icon: FileText },
         { label: "Settings", href: "/recruiter/settings", icon: Settings },
       ];

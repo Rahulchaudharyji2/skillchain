@@ -1,91 +1,112 @@
 import Link from "next/link";
-import { Send, Users, Sparkles, ArrowRight, Video } from "lucide-react";
+import { Send, Users, Sparkles, ArrowRight, Video, Briefcase, Lock, CheckCircle2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
-import { ApplicationStageUpdaterClient } from "./ApplicationStageUpdaterClient";
+import { getCurrentUser } from "@/lib/auth/session";
+import { RecruiterJobApplicantsClient } from "./RecruiterJobApplicantsClient";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function RecruiterApplicationsPage() {
+  const user = await getCurrentUser();
+
+  // Find recruiter's organization
+  let recruiterOrg = null;
+  if (user) {
+    if (user.organization?.id) {
+      recruiterOrg = await prisma.organization.findUnique({
+        where: { id: user.organization.id },
+      });
+    } else {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+        include: { organization: true },
+      });
+      recruiterOrg = membership?.organization || (await prisma.organization.findFirst({ where: { type: "EMPLOYER" } }));
+    }
+  }
+
+  // Fetch jobs for recruiter org or all published jobs
+  const jobs = await prisma.job.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: {
+        select: { applications: true },
+      },
+    },
+  });
+
+  // Fetch all applications with job, student profile, assessments/marks, unlock status, and interviews
   const applications = await prisma.application.findMany({
     include: {
       job: true,
-      studentProfile: { include: { user: true } },
+      studentProfile: {
+        include: {
+          user: true,
+          assessmentAttempts: {
+            where: { status: "GRADED" },
+            include: {
+              assessment: true,
+              assessmentResult: true,
+            },
+            orderBy: { score: "desc" },
+          },
+          credentials: true,
+          profileUnlocks: {
+            where: recruiterOrg ? { organizationId: recruiterOrg.id } : undefined,
+          },
+        },
+      },
       interviews: true,
     },
     orderBy: { matchScore: "desc" },
   });
 
+  // Serialize applications with marks and unlock state
+  const serializedApplications = applications.map((app) => {
+    const isUnlocked = app.studentProfile.profileUnlocks.length > 0;
+    const attempts = app.studentProfile.assessmentAttempts;
+
+    return {
+      id: app.id,
+      jobId: app.job.id,
+      jobTitle: app.job.title,
+      studentProfileId: app.studentProfile.id,
+      candidateName: app.studentProfile.user.name,
+      candidateEmail: isUnlocked
+        ? app.studentProfile.user.email
+        : app.studentProfile.user.email.replace(/(.{2})(.*)(@.*)/, "$1•••$3"),
+      headline: app.studentProfile.headline,
+      matchScore: app.matchScore,
+      currentStage: app.currentStage,
+      appliedAt: app.appliedAt.toISOString(),
+      isUnlocked,
+      assessmentMarks: attempts.map((att) => ({
+        id: att.id,
+        assessmentTitle: att.assessment.title,
+        score: att.score,
+        passed: att.passed,
+        percentageScore: att.assessmentResult?.percentageScore || att.score,
+      })),
+      hasInterview: app.interviews.length > 0,
+      interviewCount: app.interviews.length,
+      hasDegree: app.studentProfile.credentials.some((c) => c.credentialType === "DEGREE"),
+    };
+  });
+
+  const serializedJobs = jobs.map((j) => ({
+    id: j.id,
+    title: j.title,
+    applicationsCount: j._count.applications,
+  }));
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ochre-700">
-          <Send className="w-3.5 h-3.5" />
-          <span>Talent Pipeline</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-display font-bold text-forest-950 mt-1">
-          Applicant Tracking & Match Progression
-        </h1>
-        <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-          Review candidates across all application stages. Update stages, trigger interview schedules,
-          and inspect deterministic skill evidence.
-        </p>
-      </div>
-
-      <div className="card-premium overflow-hidden bg-white border border-cream-300">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-cream-100/70 border-b border-cream-200 text-stone-600 uppercase tracking-wider text-[10px] font-bold">
-            <tr>
-              <th className="py-3 px-4">Candidate</th>
-              <th className="py-3 px-4">Job Role</th>
-              <th className="py-3 px-4">Match Score</th>
-              <th className="py-3 px-4">Applied Date</th>
-              <th className="py-3 px-4">Hiring Stage</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-cream-100">
-            {applications.map((app) => (
-              <tr key={app.id} className="hover:bg-cream-50/60 transition-colors">
-                <td className="py-3.5 px-4">
-                  <span className="font-bold text-forest-950 block">
-                    {app.studentProfile.user.name}
-                  </span>
-                  <span className="text-[11px] text-stone-400 block">
-                    {app.studentProfile.user.email}
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 font-medium text-forest-900">{app.job.title}</td>
-                <td className="py-3.5 px-4">
-                  <span
-                    className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${
-                      app.matchScore >= 80
-                        ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                        : "bg-amber-100 text-amber-900"
-                    }`}
-                  >
-                    {app.matchScore}%
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-stone-500">{formatDate(app.appliedAt)}</td>
-                <td className="py-3.5 px-4">
-                  <ApplicationStageUpdaterClient
-                    applicationId={app.id}
-                    currentStage={app.currentStage}
-                  />
-                </td>
-                <td className="py-3.5 px-4 text-right">
-                  <Link
-                    href={`/recruiter/candidates/${app.studentProfile.id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-forest-800 hover:text-forest-950"
-                  >
-                    <span>Match Deep Dive</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <RecruiterJobApplicantsClient
+        initialApplications={serializedApplications}
+        jobs={serializedJobs}
+        orgTokens={recruiterOrg?.tokenBalance ?? 50}
+      />
     </div>
   );
 }
