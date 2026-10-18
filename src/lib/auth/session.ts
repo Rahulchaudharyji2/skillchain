@@ -16,6 +16,7 @@ export interface SessionUser {
     universityName: string | null;
     degree: string | null;
     publicPassportSlug: string;
+    tokenBalance?: number;
   } | null;
   organization?: {
     id: string;
@@ -23,6 +24,7 @@ export interface SessionUser {
     slug: string;
     type: string;
     verified: boolean;
+    tokenBalance?: number;
   } | null;
 }
 
@@ -55,6 +57,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
           universityName: true,
           degree: true,
           publicPassportSlug: true,
+          tokenBalance: true,
         },
       },
       organizationMembers: {
@@ -66,6 +69,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
               slug: true,
               type: true,
               verified: true,
+              tokenBalance: true,
             },
           },
         },
@@ -84,6 +88,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
             universityName: true,
             degree: true,
             publicPassportSlug: true,
+            tokenBalance: true,
           },
         },
         organizationMembers: {
@@ -95,6 +100,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
                 slug: true,
                 type: true,
                 verified: true,
+                tokenBalance: true,
               },
             },
           },

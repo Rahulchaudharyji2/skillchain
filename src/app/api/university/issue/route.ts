@@ -46,6 +46,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "University organization not found" }, { status: 404 });
     }
 
+    // Enforce 3 token requirement to issue 1 verifiable academic degree
+    const DEGREE_ISSUANCE_TOKEN_COST = 3;
+    if (uniOrg.tokenBalance < DEGREE_ISSUANCE_TOKEN_COST) {
+      return NextResponse.json(
+        {
+          error: `Insufficient University token balance. Issuing a verifiable degree requires ${DEGREE_ISSUANCE_TOKEN_COST} tokens. Current balance: ${uniOrg.tokenBalance} tokens. Please top up your institutional wallet.`,
+          requiredTokens: DEGREE_ISSUANCE_TOKEN_COST,
+          currentBalance: uniOrg.tokenBalance,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Deduct 3 tokens from University organization
+    await prisma.organization.update({
+      where: { id: uniOrg.id },
+      data: {
+        tokenBalance: { decrement: DEGREE_ISSUANCE_TOKEN_COST },
+      },
+    });
+
     const salt = generateSalt();
     const credId = generateCredentialId();
 

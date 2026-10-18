@@ -64,8 +64,14 @@ export async function Navbar() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
             </Link>
             <Link
+              href="/wallet"
+              className="hover:text-forest-900 transition-colors flex items-center gap-1 text-ochre-800 font-bold"
+            >
+              Token Wallet
+            </Link>
+            <Link
               href="/verify/0x8fae19b489a24dcbe89123849182a47291847192849182938491829384918293"
-              className="hover:text-forest-900 transition-colors flex items-center gap-1 text-ochre-800"
+              className="hover:text-forest-900 transition-colors flex items-center gap-1"
             >
               <FileCheck className="w-3.5 h-3.5" />
               Verify Credential

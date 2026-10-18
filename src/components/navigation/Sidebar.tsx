@@ -49,6 +49,7 @@ export function Sidebar({ role, user }: SidebarProps) {
         { label: "Students Directory", href: "/university/students", icon: Users },
         { label: "Department Issuers", href: "/university/issuers", icon: School },
         { label: "Cryptographic Audit", href: "/university/audit", icon: ShieldCheck },
+        { label: "Token Wallet", href: "/wallet", icon: Award },
       ];
     }
 
@@ -61,6 +62,7 @@ export function Sidebar({ role, user }: SidebarProps) {
         { label: "Candidate Discovery", href: "/recruiter/candidates", icon: Search },
         { label: "1:1 Interviews", href: "/recruiter/interviews", icon: Video },
         { label: "AI Interview Reports", href: "/recruiter/reports", icon: FileText },
+        { label: "Token Wallet", href: "/wallet", icon: Sparkles },
         { label: "Settings", href: "/recruiter/settings", icon: Settings },
       ];
     }
@@ -73,6 +75,7 @@ export function Sidebar({ role, user }: SidebarProps) {
         { label: "Skill Ontology", href: "/admin/skills", icon: Sparkles },
         { label: "Assessment Bank", href: "/admin/assessments", icon: BookOpenCheck },
         { label: "Issuer Verification", href: "/admin/issuers", icon: School },
+        { label: "Token Wallet Hub", href: "/wallet", icon: Award },
         { label: "System Audit Logs", href: "/admin/audit", icon: ShieldCheck },
         { label: "Platform Settings", href: "/admin/settings", icon: Settings },
       ];
@@ -83,6 +86,7 @@ export function Sidebar({ role, user }: SidebarProps) {
       { label: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
       { label: "Skill Passport & QR", href: "/student/passport", icon: QrCode, highlight: true },
       { label: "My Credentials", href: "/student/credentials", icon: Award },
+      { label: "Token Wallet", href: "/wallet", icon: Sparkles },
       { label: "Skills & Evidence", href: "/student/skills", icon: Sparkles },
       { label: "Skill Assessments", href: "/student/assessments", icon: BookOpenCheck },
       { label: "Explore Jobs", href: "/student/jobs", icon: Briefcase },

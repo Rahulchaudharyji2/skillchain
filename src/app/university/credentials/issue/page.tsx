@@ -3,10 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { School, Award } from "lucide-react";
 import { IssueWizardClient } from "./IssueWizardClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function UniversityIssuePage() {
-  const students = await prisma.studentProfile.findMany({
-    include: { user: true },
-  });
+  const [students, uniOrg] = await Promise.all([
+    prisma.studentProfile.findMany({
+      include: { user: true },
+    }),
+    prisma.organization.findFirst({
+      where: { type: "UNIVERSITY" },
+    }),
+  ]);
 
   const formattedStudents = students.map((s) => ({
     id: s.id,
@@ -27,12 +34,14 @@ export default async function UniversityIssuePage() {
           Issue Verifiable Academic Degree
         </h1>
         <p className="text-xs text-stone-500 mt-1 max-w-2xl">
-          Confer digitally signed degrees anchored on Polygon Amoy. The issued credential provides
-          graduates with an immutable, shareable proof for employers.
+          Confer digitally signed degrees anchored on Polygon Amoy. Each degree issuance consumes 3 institutional tokens.
         </p>
       </div>
 
-      <IssueWizardClient students={formattedStudents} />
+      <IssueWizardClient
+        students={formattedStudents}
+        initialUniTokens={uniOrg?.tokenBalance ?? 50}
+      />
     </div>
   );
 }

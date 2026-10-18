@@ -26,9 +26,13 @@ interface StudentOption {
 
 interface IssueWizardClientProps {
   students: StudentOption[];
+  initialUniTokens?: number;
 }
 
-export function IssueWizardClient({ students }: IssueWizardClientProps) {
+export function IssueWizardClient({
+  students,
+  initialUniTokens = 50,
+}: IssueWizardClientProps) {
   const router = useRouter();
 
   const [studentProfileId, setStudentProfileId] = useState(students[0]?.id || "");
@@ -38,6 +42,7 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
   const [grade, setGrade] = useState("Summa Cum Laude (GPA 3.95)");
   const [issuanceDate, setIssuanceDate] = useState(new Date().toISOString().split("T")[0]);
   const [mode, setMode] = useState<"OFFER" | "DIRECT_MINT">("OFFER");
+  const [uniTokens, setUniTokens] = useState(initialUniTokens);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
@@ -49,6 +54,11 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (uniTokens < 3) {
+      alert("Insufficient University Tokens! You need at least 3 tokens to issue a degree. Current balance: " + uniTokens);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -67,12 +77,16 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
+        setUniTokens((prev) => Math.max(0, prev - 3));
         setResult({ ...data, status: mode === "OFFER" ? "OFFERED" : "ACTIVE" });
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      } else {
+        alert(data.error || "Failed to initiate degree");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Issuance failed:", err);
+      alert("Network error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -143,6 +157,34 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
 
   return (
     <form onSubmit={handleSubmit} className="card-premium p-6 sm:p-8 bg-white border border-cream-300 space-y-6">
+      {/* University Institutional Wallet Banner */}
+      <div className="p-4 rounded-xl bg-forest-900 text-cream-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-forest-800 text-ochre-300">
+            <School className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-ochre-300">
+              Institutional Wallet
+            </span>
+            <div className="text-sm font-bold text-white flex items-center gap-2">
+              <span>Balance: <strong className="font-mono text-base text-ochre-300">{uniTokens} Tokens</strong></span>
+              <span className="text-[11px] font-normal text-cream-200">
+                (Cost per degree issuance: <strong>3 Tokens</strong>)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <Link
+          href="/wallet"
+          className="px-3.5 py-1.5 rounded-lg bg-ochre-400 hover:bg-ochre-300 text-forest-950 font-bold text-xs flex items-center gap-1.5 transition-all self-start sm:self-auto"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Top Up Tokens</span>
+        </Link>
+      </div>
+
       {/* Step 1: Select Student */}
       <div>
         <label className="text-xs font-semibold text-stone-700 block mb-1.5">
