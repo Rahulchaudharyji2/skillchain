@@ -82,17 +82,13 @@ export function InterviewActionsClient({
         )}
       </span>
 
-      {meetingUrl && (
-        <a
-          href={meetingUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="px-3 py-1.5 rounded-lg bg-cream-100 hover:bg-cream-200 text-forest-900 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-        >
-          <Video className="w-3.5 h-3.5 text-forest-800" />
-          <span>Launch Room</span>
-        </a>
-      )}
+      <Link
+        href={`/recruiter/interviews/${interviewId}`}
+        className="px-3.5 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-cream-50 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+      >
+        <Video className="w-3.5 h-3.5 text-ochre-300" />
+        <span>Enter 1:1 Live Room</span>
+      </Link>
 
       {hasReport ? (
         <Link

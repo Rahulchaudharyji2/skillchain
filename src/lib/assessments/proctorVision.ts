@@ -60,6 +60,8 @@ export class ProctorVisionEngine {
   private noFaceConsecutiveFrames = 0;
   private multiFaceConsecutiveFrames = 0;
   private phoneConsecutiveFrames = 0;
+  private backendMicroserviceAvailable = true;
+  private lastBackendPollTime = 0;
 
   /**
    * Analyze an HTMLVideoElement frame in real time.

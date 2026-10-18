@@ -26,3 +26,6 @@ dev.db*
 .DS_Store
 *.pem
 *.tsbuildinfo
+
+# Submodules & Reference Clones
+imterviewmodel/

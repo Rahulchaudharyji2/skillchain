@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Video,
   Calendar,
@@ -104,17 +105,13 @@ export default async function StudentInterviewsPage() {
                     {interview.status}
                   </span>
 
-                  {interview.meetingUrl && (
-                    <a
-                      href={interview.meetingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-4 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
-                    >
-                      <Video className="w-3.5 h-3.5 text-ochre-300" />
-                      <span>Join Room</span>
-                    </a>
-                  )}
+                  <Link
+                    href={`/student/interviews/${interview.id}`}
+                    className="px-4 py-2 rounded-xl bg-emerald-800 text-cream-50 hover:bg-emerald-700 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <Video className="w-3.5 h-3.5 text-ochre-300" />
+                    <span>Join 1:1 Live Room</span>
+                  </Link>
                 </div>
               </div>
 

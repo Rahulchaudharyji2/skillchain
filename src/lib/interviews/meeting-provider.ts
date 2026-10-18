@@ -38,10 +38,12 @@ export interface TranscriptData {
 export class MeetingProviderService {
   private dailyApiKey?: string;
   private zoomApiKey?: string;
+  private jitsiDomain: string;
 
   constructor() {
     this.dailyApiKey = process.env.DAILY_API_KEY;
     this.zoomApiKey = process.env.ZOOM_API_KEY;
+    this.jitsiDomain = process.env.JITSI_DOMAIN || "meet.jit.si";
   }
 
   /**
@@ -54,15 +56,32 @@ export class MeetingProviderService {
     if (this.zoomApiKey) {
       return { provider: "ZOOM", isReal: true, label: "Zoom Video Meeting API" };
     }
+    if (process.env.MEETING_PROVIDER === "JITSI" || process.env.ENABLE_JITSI === "true") {
+      return {
+        provider: "JITSI",
+        isReal: true,
+        label: "Jitsi Meet WebRTC Video (AiProctor Integrated)",
+      };
+    }
     return {
       provider: "DEMO_SIMULATED",
       isReal: false,
-      label: "Simulated Demo Meeting Provider (Clearly Labelled)",
+      label: "Simulated Provider (Development / Test Sandbox)",
     };
   }
 
   /**
-   * Creates a meeting room using real provider if configured, otherwise simulated demo room.
+   * Generates a high-entropy Jitsi room URL (integrated from imterviewmodel)
+   */
+  generateJitsiRoomUrl(topic: string): string {
+    const sanitizedTopic = topic.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30);
+    const roomEntropy = Math.random().toString(36).substring(2, 10);
+    const roomName = `SkillChain-Interview-${sanitizedTopic}-${roomEntropy}`;
+    return `https://${this.jitsiDomain}/${roomName}#config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
+  }
+
+  /**
+   * Creates a meeting room using real provider if configured, otherwise simulated demo or Jitsi room.
    */
   async createMeetingRoom(options: MeetingRoomOptions): Promise<MeetingRoomResult> {
     // 1. Check for Daily.co integration
@@ -93,17 +112,28 @@ export class MeetingProviderService {
           };
         }
       } catch (err) {
-        console.warn("Daily.co API call failed, falling back to clearly labelled demo room:", err);
+        console.warn("Daily.co API call failed, falling back:", err);
       }
     }
 
-    // 2. Default clearly labelled demo simulated meeting room
-    const roomId = `demo-room-${Math.floor(1000 + Math.random() * 9000)}`;
+    // 2. Check for explicit JITSI mode
+    if (process.env.MEETING_PROVIDER === "JITSI" || process.env.ENABLE_JITSI === "true") {
+      const meetingUrl = this.generateJitsiRoomUrl(options.topic);
+      return {
+        meetingUrl,
+        provider: "DEMO_SIMULATED",
+        isSimulated: false,
+        providerLabel: "Jitsi Meet Real-Time WebRTC Video",
+      };
+    }
+
+    // 3. Fallback demo simulated meeting room URL
+    const demoId = Math.random().toString(36).substring(2, 9);
     return {
-      meetingUrl: `https://meet.skillchain.org/rooms/${roomId}?demo=true`,
+      meetingUrl: `https://demo.skillchain.local/rooms/${demoId}?topic=${encodeURIComponent(options.topic)}`,
       provider: "DEMO_SIMULATED",
       isSimulated: true,
-      providerLabel: "Simulated Demo Meeting Provider (Demo Only)",
+      providerLabel: "SkillChain Sandbox Simulated Room",
     };
   }
 
