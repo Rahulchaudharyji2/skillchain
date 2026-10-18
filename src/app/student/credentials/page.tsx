@@ -15,6 +15,9 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { MetaMaskClaimDegree } from "@/components/blockchain/MetaMaskClaimDegree";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function StudentCredentialsPage() {
   const user = await getCurrentUser();
 

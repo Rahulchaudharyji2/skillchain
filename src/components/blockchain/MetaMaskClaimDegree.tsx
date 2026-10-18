@@ -38,35 +38,45 @@ export function MetaMaskClaimDegree({
 
       if (typeof window !== "undefined" && (window as any).ethereum) {
         const ethereum = (window as any).ethereum;
-        const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-        address = accounts[0];
-        setWalletAddress(address);
+        try {
+          const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+          if (accounts && accounts.length > 0) {
+            address = accounts[0];
+            setWalletAddress(address);
+          }
+        } catch (accErr: any) {
+          console.warn("MetaMask account request:", accErr);
+        }
 
-        // Ensure Amoy network
-        const amoyHex = "0x" + POLYGON_AMOY_CHAIN_ID.toString(16);
-        const currentChainId = await ethereum.request({ method: "eth_chainId" });
-        if (currentChainId !== amoyHex) {
-          try {
-            await ethereum.request({
-              method: "wallet_switchEthereumChain",
-              params: [{ chainId: amoyHex }],
-            });
-          } catch (switchErr: any) {
-            if (switchErr.code === 4902) {
+        // Try network switch to Polygon Amoy (non-blocking)
+        try {
+          const amoyHex = "0x" + POLYGON_AMOY_CHAIN_ID.toString(16);
+          const currentChainId = await ethereum.request({ method: "eth_chainId" });
+          if (currentChainId !== amoyHex) {
+            try {
               await ethereum.request({
-                method: "wallet_addEthereumChain",
-                params: [
-                  {
-                    chainId: amoyHex,
-                    chainName: "Polygon Amoy Testnet",
-                    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-                    rpcUrls: ["https://rpc-amoy.polygon.technology"],
-                    blockExplorerUrls: ["https://amoy.polygonscan.com"],
-                  },
-                ],
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: amoyHex }],
               });
+            } catch (switchErr: any) {
+              if (switchErr.code === 4902) {
+                await ethereum.request({
+                  method: "wallet_addEthereumChain",
+                  params: [
+                    {
+                      chainId: amoyHex,
+                      chainName: "Polygon Amoy Testnet",
+                      nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+                      rpcUrls: ["https://rpc-amoy.polygon.technology"],
+                      blockExplorerUrls: ["https://amoy.polygonscan.com"],
+                    },
+                  ],
+                });
+              }
             }
           }
+        } catch (chainErr) {
+          console.warn("Chain switch error (proceeding with address):", chainErr);
         }
       }
 
@@ -81,12 +91,12 @@ export function MetaMaskClaimDegree({
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setCurrentStatus("STUDENT_ACCEPTED");
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 1200);
       } else {
         setError(data.error || "Failed to submit acceptance.");
       }

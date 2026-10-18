@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { CredentialStatusActions } from "./CredentialStatusActions";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function UniversityCredentialsPage() {
   const credentials = await prisma.credential.findMany({
     include: {

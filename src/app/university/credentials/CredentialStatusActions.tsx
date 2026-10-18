@@ -22,6 +22,32 @@ export function CredentialStatusActions({
   const [sealedTx, setSealedTx] = useState<string | null>(null);
   const router = useRouter();
 
+  const handleSimulateAccept = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/student/credentials/${credentialId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress: studentWallet || "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } else {
+        alert(data.error || "Failed to confirm student acceptance.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to record acceptance.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSeal = async () => {
     const confirmMessage = studentWallet
       ? `Confer permanent Soulbound Seal on Polygon Amoy for ${studentName || "student"}?\n\nWallet: ${studentWallet}\n\nOnce sealed, this degree will be permanently minted and CANNOT be transferred to any other wallet.`
@@ -41,8 +67,8 @@ export function CredentialStatusActions({
         setSealedTx(data.txHash);
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         setTimeout(() => {
-          router.refresh();
-        }, 1500);
+          window.location.reload();
+        }, 1200);
       } else {
         alert(data.error || "Failed to seal credential on-chain.");
       }
@@ -65,7 +91,7 @@ export function CredentialStatusActions({
         body: JSON.stringify({ action, reason }),
       });
       if (res.ok) {
-        router.refresh();
+        window.location.reload();
       }
     } catch (err) {
       console.error("Status update error:", err);
@@ -98,12 +124,21 @@ export function CredentialStatusActions({
 
           {/* Initiated state: Waiting for student */}
           {(currentStatus === "INITIATED" || currentStatus === "OFFERED") && (
-            <span
-              className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md font-medium"
-              title="Awaiting student to review and accept the conferral request with MetaMask"
-            >
-              ⏳ Awaiting Student Accept
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md font-medium"
+                title="Awaiting student to review and accept the conferral request with MetaMask"
+              >
+                ⏳ Awaiting Student Accept
+              </span>
+              <button
+                onClick={handleSimulateAccept}
+                className="px-2 py-1 rounded bg-sky-100 hover:bg-sky-200 text-sky-900 text-[10px] font-bold border border-sky-300 transition-colors"
+                title="Confirm student acceptance immediately for testing or verified approval"
+              >
+                Confirm Accept
+              </button>
+            </div>
           )}
 
           {/* Active state actions */}
