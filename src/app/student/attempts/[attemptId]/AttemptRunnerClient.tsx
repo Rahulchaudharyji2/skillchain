@@ -33,6 +33,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import { proctorVision, BoundingBox } from "@/lib/assessments/proctorVision";
 
 interface QuestionItem {
   id: string;
@@ -163,11 +164,38 @@ export function AttemptRunnerClient({
     return () => clearInterval(interval);
   }, [status, consentGiven, expiresAtIso]);
 
+  // Ref for video & optical overlay canvas
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const audioAlertPlayedRef = React.useRef<Record<string, number>>({});
+
+  // Helper to play synthesized beep tone on security infraction
+  const playAlertTone = (frequency: number = 880, durationMs: number = 180) => {
+    try {
+      if (typeof window !== "undefined" && (window.AudioContext || (window as any).webkitAudioContext)) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContextClass();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + durationMs / 1000);
+      }
+    } catch {}
+  };
+
   // Request & Initialize Video Camera Stream for AI Face Proctoring
   useEffect(() => {
     if (status !== "IN_PROGRESS" || !consentGiven) return;
 
     let mediaStream: MediaStream | null = null;
+    let isMounted = true;
+
     const startCamera = async () => {
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -175,12 +203,15 @@ export function AttemptRunnerClient({
             video: { width: 320, height: 240, facingMode: "user" },
             audio: false,
           });
+          if (!isMounted) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            return;
+          }
           setCameraActive(true);
           setCameraPermissionGranted(true);
-          const videoElement = document.getElementById("proctor-webcam-feed") as HTMLVideoElement;
-          if (videoElement) {
-            videoElement.srcObject = mediaStream;
-            videoElement.play().catch(() => {});
+          if (videoRef.current) {
+            videoRef.current.srcObject = mediaStream;
+            videoRef.current.play().catch(() => {});
           }
         }
       } catch (err) {
@@ -192,9 +223,160 @@ export function AttemptRunnerClient({
     startCamera();
 
     return () => {
+      isMounted = false;
       if (mediaStream) {
         mediaStream.getTracks().forEach((track) => track.stop());
       }
+    };
+  }, [status, consentGiven]);
+
+  // =========================================================================
+  // REAL-TIME AI VISION DETECTION LOOP (Runs every 400ms on webcam feed)
+  // =========================================================================
+  useEffect(() => {
+    if (status !== "IN_PROGRESS" || !consentGiven) return;
+
+    let isRunning = true;
+    let detectionInterval: NodeJS.Timeout | null = null;
+
+    const runVisionInspection = async () => {
+      if (!videoRef.current || !canvasRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (video.readyState < 2 || video.paused || video.ended) return;
+
+      try {
+        const result = await proctorVision.analyzeFrame(video);
+        if (!isRunning) return;
+
+        // Draw bounding boxes on canvas overlay
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Draw faces
+          result.faces.forEach((face) => {
+            ctx.save();
+            ctx.lineWidth = 2;
+            if (face.isViolation) {
+              ctx.strokeStyle = "#ef4444";
+              ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
+            } else {
+              ctx.strokeStyle = "#10b981";
+              ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
+            }
+            ctx.fillRect(face.x, face.y, face.width, face.height);
+            ctx.strokeRect(face.x, face.y, face.width, face.height);
+
+            // Label tag
+            ctx.font = "bold 9px monospace";
+            const text = face.label;
+            const textMetrics = ctx.measureText(text);
+            ctx.fillStyle = face.isViolation ? "#dc2626" : "#059669";
+            ctx.fillRect(face.x, Math.max(0, face.y - 14), textMetrics.width + 8, 14);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(text, face.x + 4, Math.max(10, face.y - 4));
+            ctx.restore();
+          });
+
+          // Draw Phone bounding box if detected
+          if (result.phoneDetected && result.phoneBox) {
+            const pb = result.phoneBox;
+            ctx.save();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = "#dc2626";
+            ctx.fillStyle = "rgba(220, 38, 38, 0.25)";
+            ctx.fillRect(pb.x, pb.y, pb.width, pb.height);
+            ctx.strokeRect(pb.x, pb.y, pb.width, pb.height);
+
+            ctx.font = "bold 9px monospace";
+            const text = "📱 MOBILE PHONE";
+            const textMetrics = ctx.measureText(text);
+            ctx.fillStyle = "#b91c1c";
+            ctx.fillRect(pb.x, Math.max(0, pb.y - 14), textMetrics.width + 8, 14);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(text, pb.x + 4, Math.max(10, pb.y - 4));
+            ctx.restore();
+          }
+        }
+
+        // Update state hooks
+        setDetectedFacesCount(result.faceCount);
+        setPhoneDetected(result.phoneDetected);
+
+        const now = Date.now();
+
+        // 1. Multiple Faces Violation Trigger
+        if (result.faceCount > 1) {
+          setFaceDetectionStatus("MULTIPLE_FACES");
+          const lastAlert = audioAlertPlayedRef.current["MULTIPLE_FACES"] || 0;
+          if (now - lastAlert > 6000) {
+            audioAlertPlayedRef.current["MULTIPLE_FACES"] = now;
+            playAlertTone(750, 240);
+            triggerProctorAlert(
+              "MULTIPLE_FACES",
+              "Multiple Faces Detected in Camera View",
+              `${result.faceCount} distinct persons were identified in your camera. The candidate must be completely alone during proctored skill assessments.`,
+              "CRITICAL"
+            );
+            logProctoring("MULTIPLE_FACES_DETECTED", { faceCount: result.faceCount });
+          }
+        }
+        // 2. Mobile Phone Violation Trigger
+        else if (result.phoneDetected) {
+          setFaceDetectionStatus("PHONE_DETECTED");
+          const lastAlert = audioAlertPlayedRef.current["PHONE_DETECTED"] || 0;
+          if (now - lastAlert > 6000) {
+            audioAlertPlayedRef.current["PHONE_DETECTED"] = now;
+            playAlertTone(900, 240);
+            triggerProctorAlert(
+              "PHONE_DETECTED",
+              "Unauthorized Mobile Device Detected in Camera Frame",
+              "A mobile phone or secondary screen was optically detected. Remove all handheld devices immediately.",
+              "CRITICAL"
+            );
+            logProctoring("MOBILE_PHONE_DETECTED", { device: "Smartphone" });
+          }
+        }
+        // 3. No Face Visible Violation Trigger
+        else if (result.faceCount === 0) {
+          setFaceDetectionStatus("NO_FACE");
+          const lastAlert = audioAlertPlayedRef.current["NO_FACE"] || 0;
+          if (now - lastAlert > 8000) {
+            audioAlertPlayedRef.current["NO_FACE"] = now;
+            playAlertTone(500, 180);
+            triggerProctorAlert(
+              "NO_FACE",
+              "Candidate Face Missing from Camera View",
+              "No candidate face was found in the webcam feed. You must remain seated directly in front of the camera.",
+              "WARNING"
+            );
+            logProctoring("NO_FACE_DETECTED", { faceCount: 0 });
+          }
+        }
+        // 4. Face Angle / Gaze Deviation Trigger
+        else if (result.suspiciousAngle) {
+          setFaceDetectionStatus("SUSPICIOUS_ANGLE");
+          const lastAlert = audioAlertPlayedRef.current["SUSPICIOUS_ANGLE"] || 0;
+          if (now - lastAlert > 8000) {
+            audioAlertPlayedRef.current["SUSPICIOUS_ANGLE"] = now;
+            playAlertTone(600, 150);
+            logProctoring("GAZE_DEVIATION", { deviationScore: result.gazeDeviationScore });
+          }
+        } else {
+          setFaceDetectionStatus("VERIFIED");
+        }
+      } catch (e) {
+        // Frame analysis error handled gracefully
+      }
+    };
+
+    detectionInterval = setInterval(runVisionInspection, 400);
+
+    return () => {
+      isRunning = false;
+      if (detectionInterval) clearInterval(detectionInterval);
     };
   }, [status, consentGiven]);
 
@@ -790,31 +972,61 @@ export function AttemptRunnerClient({
       <div className="card-premium p-4 bg-gradient-to-r from-forest-950 to-forest-900 text-cream-50 border border-forest-800 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4 w-full md:w-auto">
           {/* Real/Simulated Webcam Box with Overlays */}
-          <div className="relative w-32 h-24 bg-black/80 rounded-xl overflow-hidden border-2 border-forest-700 flex items-center justify-center flex-shrink-0 shadow-inner">
+          <div className="relative w-36 h-28 bg-black/90 rounded-xl overflow-hidden border-2 border-forest-700 flex items-center justify-center flex-shrink-0 shadow-inner">
             <video
               id="proctor-webcam-feed"
+              ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover mirror"
+              className="w-full h-full object-cover"
             />
-            {/* If camera is loading or permission not physical */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 pointer-events-none">
-              <Camera className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span className="text-[8px] font-mono text-emerald-300 mt-1 uppercase font-bold">
-                REC • AI VISION
-              </span>
-            </div>
+            {/* Real-Time Optical AI Bounding Box Canvas Overlay */}
+            <canvas
+              ref={canvasRef}
+              width={320}
+              height={240}
+              className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            />
 
-            {/* In-feed Detection Tag */}
-            <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/70 font-mono text-[8px] text-white">
-              {detectedFacesCount > 1
-                ? "⚠️ 2 FACES"
-                : detectedFacesCount === 0
-                ? "❌ NO FACE"
-                : phoneDetected
-                ? "📱 PHONE"
-                : "✅ 1 FACE"}
+            {/* If camera is loading or permission not physical */}
+            <div className="absolute inset-0 flex flex-col items-center justify-between p-1.5 bg-black/20 pointer-events-none z-20">
+              <div className="w-full flex items-center justify-between">
+                <span className="text-[7.5px] font-mono px-1 py-0.5 rounded bg-black/75 text-emerald-400 font-bold flex items-center gap-1 border border-emerald-500/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                  AI VISION
+                </span>
+                <span
+                  className={`text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                    detectedFacesCount > 1
+                      ? "bg-red-600 text-white animate-pulse"
+                      : detectedFacesCount === 0
+                      ? "bg-amber-600 text-white"
+                      : phoneDetected
+                      ? "bg-red-600 text-white animate-pulse"
+                      : "bg-emerald-950/80 text-emerald-300 border border-emerald-500/40"
+                  }`}
+                >
+                  {detectedFacesCount > 1
+                    ? `⚠️ ${detectedFacesCount} FACES`
+                    : detectedFacesCount === 0
+                    ? "❌ NO FACE"
+                    : phoneDetected
+                    ? "📱 PHONE"
+                    : "✅ 1 FACE"}
+                </span>
+              </div>
+
+              {/* Status pill in bottom */}
+              <div className="w-full text-center">
+                <span className="text-[7px] font-mono bg-black/80 text-cream-200 px-1.5 py-0.5 rounded">
+                  {phoneDetected
+                    ? "UNAUTHORIZED DEVICE"
+                    : detectedFacesCount > 1
+                    ? "MULTIPLE PERSONS"
+                    : "PROCTOR SCAN ACTIVE"}
+                </span>
+              </div>
             </div>
           </div>
 
