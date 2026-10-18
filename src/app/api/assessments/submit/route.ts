@@ -6,7 +6,7 @@ import { issueSkillCredentialAfterChecks } from "@/lib/assessments/credentials";
 
 export async function POST(req: NextRequest) {
   try {
-    const { attemptId, answers } = await req.json();
+    const { attemptId, answers, forcedStatus, disqualificationReason } = await req.json();
 
     if (!attemptId || !answers) {
       return NextResponse.json({ error: "attemptId and answers are required." }, { status: 400 });
@@ -106,17 +106,23 @@ export async function POST(req: NextRequest) {
     // 4. Proctoring & Integrity Evaluation
     // Check if flagged by proctoring events or overtime
     const anomalyEvents = attempt.proctoringEvents.filter((e) => e.eventType !== "CONSENT_GRANTED");
-    const hasIntegrityFlags = attempt.status === "FLAGGED" || anomalyEvents.length >= 2 || isOvertime;
+    const hasIntegrityFlags =
+      forcedStatus === "FLAGGED" ||
+      attempt.status === "FLAGGED" ||
+      anomalyEvents.length >= 2 ||
+      isOvertime;
 
     const finalStatus = hasIntegrityFlags ? "FLAGGED" : "GRADED";
+    const finalScore = forcedStatus === "FLAGGED" && disqualificationReason ? 0 : grading.percentageScore;
+    const finalPassed = forcedStatus === "FLAGGED" && disqualificationReason ? false : grading.passed;
 
     // 5. Update Attempt Record
     await prisma.assessmentAttempt.update({
       where: { id: attempt.id },
       data: {
         status: finalStatus,
-        score: grading.percentageScore,
-        passed: grading.passed,
+        score: finalScore,
+        passed: finalPassed,
         submittedAt: now,
         completedAt: now,
       },
@@ -124,7 +130,9 @@ export async function POST(req: NextRequest) {
 
     // 6. Create Assessment Result
     let resultFeedback = "";
-    if (hasIntegrityFlags) {
+    if (disqualificationReason) {
+      resultFeedback = `DISQUALIFIED: ${disqualificationReason}`;
+    } else if (hasIntegrityFlags) {
       resultFeedback = `Your assessment earned ${grading.percentageScore}%. Because session flags were recorded (e.g. tab blur or window focus), your attempt is queued for human assessor verification. Note: Proctoring flags are never automated proof of cheating.`;
     } else if (grading.passed) {
       resultFeedback = `Congratulations! You scored ${grading.percentageScore}%, passing the ${attempt.assessment.passingThreshold}% threshold. A verified skill credential has been issued.`;
@@ -137,7 +145,7 @@ export async function POST(req: NextRequest) {
         attemptId: attempt.id,
         totalScore: grading.totalPointsEarned,
         maxScore: grading.totalPointsPossible,
-        percentageScore: grading.percentageScore,
+        percentageScore: finalScore,
         verifiedSkillIssued: false, // will be flipped to true when checks pass
         feedback: resultFeedback,
       },

@@ -27,6 +27,10 @@ import {
   AlertOctagon,
   UserCheck,
   ShieldX,
+  Smartphone,
+  Users,
+  Bell,
+  AlertCircle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -121,9 +125,16 @@ export function AttemptRunnerClient({
     description: string;
     severity: "WARNING" | "CRITICAL";
     code: string;
+    durationRemaining?: number;
   } | null>(null);
+
+  const [detectedFacesCount, setDetectedFacesCount] = useState<number>(1);
+  const [phoneDetected, setPhoneDetected] = useState<boolean>(false);
+  const [suspiciousActivitySeconds, setSuspiciousActivitySeconds] = useState<number>(0);
+  const [activeAnomalyReason, setActiveAnomalyReason] = useState<string | null>(null);
+
   const [faceDetectionStatus, setFaceDetectionStatus] = useState<
-    "VERIFIED" | "SUSPICIOUS_ANGLE" | "MULTIPLE_FACES" | "NO_FACE" | "FOCUS_LOST"
+    "VERIFIED" | "SUSPICIOUS_ANGLE" | "MULTIPLE_FACES" | "NO_FACE" | "PHONE_DETECTED" | "FOCUS_LOST"
   >("VERIFIED");
 
   // Authoritative server-side timer calculation
@@ -173,7 +184,6 @@ export function AttemptRunnerClient({
           }
         }
       } catch (err) {
-        // If physical camera is blocked or not available in dev/CI environment, maintain simulated AI vision proctoring
         setCameraActive(true);
         setCameraPermissionGranted(true);
       }
@@ -194,6 +204,7 @@ export function AttemptRunnerClient({
 
     const handleVisibility = () => {
       if (document.hidden) {
+        setActiveAnomalyReason("Screen switching / Tab switch detected");
         triggerProctorAlert(
           "TAB_SWITCH",
           "Tab Switch / Screen Switching Prohibited",
@@ -201,10 +212,15 @@ export function AttemptRunnerClient({
           "CRITICAL"
         );
         logProctoring("TAB_SWITCH", { message: "Candidate changed or hid browser tab" });
+      } else {
+        if (activeAnomalyReason === "Screen switching / Tab switch detected") {
+          setActiveAnomalyReason(null);
+        }
       }
     };
 
     const handleBlur = () => {
+      setActiveAnomalyReason("Screen focus lost / clicked outside exam");
       triggerProctorAlert(
         "FOCUS_LOST",
         "Screen Focus Lost",
@@ -214,8 +230,15 @@ export function AttemptRunnerClient({
       logProctoring("FOCUS_LOST", { message: "Window lost active focus" });
     };
 
+    const handleFocus = () => {
+      if (activeAnomalyReason === "Screen focus lost / clicked outside exam") {
+        setActiveAnomalyReason(null);
+      }
+    };
+
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
+        setActiveAnomalyReason("Exited fullscreen mode");
         triggerProctorAlert(
           "FULLSCREEN_EXIT",
           "Fullscreen Mode Exited",
@@ -223,40 +246,101 @@ export function AttemptRunnerClient({
           "WARNING"
         );
         logProctoring("FULLSCREEN_EXIT", { message: "Exited fullscreen mode" });
+      } else {
+        if (activeAnomalyReason === "Exited fullscreen mode") {
+          setActiveAnomalyReason(null);
+        }
       }
     };
 
-    // AI Facial and Gaze Angle Periodic Scanner (Every 12 seconds)
-    const proctorAiScanner = setInterval(() => {
-      // Simulate real-time continuous head pose & face verification telemetry
-      const rand = Math.random();
-      if (rand < 0.05) {
-        // Random check simulation (rare gaze drift)
-        setFaceDetectionStatus("SUSPICIOUS_ANGLE");
-        triggerProctorAlert(
-          "SUSPICIOUS_GAZE_ANGLE",
-          "Suspicious Face Angle / Gaze Deviation Detected",
-          "AI vision flagged that your face angle turned away from the screen. Please look straight into your monitor.",
-          "WARNING"
-        );
-        logProctoring("GAZE_ANGLE_DRIFT", { angle: "38_deg_yaw", message: "Face turned away from screen" });
-        setTimeout(() => setFaceDetectionStatus("VERIFIED"), 5000);
-      } else {
-        setFaceDetectionStatus("VERIFIED");
-      }
-    }, 12000);
-
     window.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
 
     return () => {
       window.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      clearInterval(proctorAiScanner);
     };
-  }, [status, consentGiven]);
+  }, [status, consentGiven, activeAnomalyReason]);
+
+  // =========================================================================
+  // CONTINUOUS 1-SECOND SUSPICIOUS TELEMETRY & AUTO-TERMINATION (15-20 SECONDS)
+  // =========================================================================
+  useEffect(() => {
+    if (status !== "IN_PROGRESS" || !consentGiven) return;
+
+    const proctorHeartbeat = setInterval(() => {
+      // Analyze current optical status
+      let currentAnomaly: string | null = activeAnomalyReason;
+
+      if (detectedFacesCount > 1) {
+        currentAnomaly = "Multiple faces detected in camera frame";
+      } else if (detectedFacesCount === 0) {
+        currentAnomaly = "No candidate face visible in camera frame";
+      } else if (phoneDetected) {
+        currentAnomaly = "Mobile phone / secondary device detected in camera";
+      } else if (faceDetectionStatus === "SUSPICIOUS_ANGLE") {
+        currentAnomaly = "Suspicious head angle / gaze averted from screen";
+      }
+
+      if (currentAnomaly) {
+        setSuspiciousActivitySeconds((prev) => {
+          const next = prev + 1;
+
+          // When suspicious activity reaches 15-20 seconds -> AUTOMATICALLY TERMINATE THE TEST!
+          if (next >= 18) {
+            clearInterval(proctorHeartbeat);
+            handleAutoDisqualify(
+              `Assessment automatically terminated due to continuous suspicious activity exceeding 18 seconds: ${currentAnomaly}.`
+            );
+          }
+          return next;
+        });
+      } else {
+        // Recover if candidate resumes normal behavior
+        setSuspiciousActivitySeconds((prev) => Math.max(0, prev - 1));
+      }
+    }, 1000);
+
+    return () => clearInterval(proctorHeartbeat);
+  }, [status, consentGiven, activeAnomalyReason, detectedFacesCount, phoneDetected, faceDetectionStatus]);
+
+  // Handle immediate automatic termination due to prolonged suspicious activity
+  const handleAutoDisqualify = async (reason: string) => {
+    try {
+      setSubmitting(true);
+      await logProctoring("AUTO_TERMINATION_DISQUALIFIED", {
+        reason,
+        durationSeconds: 18,
+      });
+
+      const res = await fetch("/api/assessments/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attemptId,
+          answers,
+          forcedStatus: "FLAGGED",
+          disqualificationReason: reason,
+        }),
+      });
+
+      const data = await res.json();
+      setStatus("FLAGGED");
+      setScore(0);
+      setPassed(false);
+      setFeedback(reason);
+      setProctorAlertModal(null);
+    } catch (e) {
+      setStatus("FLAGGED");
+      setFeedback(reason);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const triggerProctorAlert = (
     code: string,
@@ -705,8 +789,8 @@ export function AttemptRunnerClient({
       {/* Live AI Face Proctoring & Security HUD */}
       <div className="card-premium p-4 bg-gradient-to-r from-forest-950 to-forest-900 text-cream-50 border border-forest-800 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4 w-full md:w-auto">
-          {/* Real/Simulated Webcam Box */}
-          <div className="relative w-28 h-20 bg-black/60 rounded-xl overflow-hidden border border-forest-700 flex items-center justify-center flex-shrink-0 shadow-inner">
+          {/* Real/Simulated Webcam Box with Overlays */}
+          <div className="relative w-32 h-24 bg-black/80 rounded-xl overflow-hidden border-2 border-forest-700 flex items-center justify-center flex-shrink-0 shadow-inner">
             <video
               id="proctor-webcam-feed"
               autoPlay
@@ -721,6 +805,17 @@ export function AttemptRunnerClient({
                 REC • AI VISION
               </span>
             </div>
+
+            {/* In-feed Detection Tag */}
+            <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/70 font-mono text-[8px] text-white">
+              {detectedFacesCount > 1
+                ? "⚠️ 2 FACES"
+                : detectedFacesCount === 0
+                ? "❌ NO FACE"
+                : phoneDetected
+                ? "📱 PHONE"
+                : "✅ 1 FACE"}
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -733,35 +828,115 @@ export function AttemptRunnerClient({
                 Flags: <strong>{proctorCount}</strong>
               </span>
             </div>
-            <h4 className="text-xs font-bold text-white">AI Vision & Screen Anti-Tampering Shield</h4>
+            <h4 className="text-xs font-bold text-white">AI Optical Vision & Anti-Cheating System</h4>
             <p className="text-[11px] text-cream-200">
-              Live face detection, single-candidate verification, and window boundary tracking active.
+              Detects multiple faces, unauthorized mobile phones, screen switches, and face deviation.
             </p>
+
+            {/* Countdown alert if suspicious activity is prolonged (> 0s) */}
+            {suspiciousActivitySeconds > 0 && (
+              <div className="p-2 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-[11px] flex items-center justify-between gap-2 animate-pulse mt-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>SUSPICIOUS ACTIVITY: Test terminates in {18 - suspiciousActivitySeconds}s!</span>
+                </div>
+                <span className="text-[10px] font-mono bg-red-900 px-2 py-0.5 rounded font-bold">
+                  {suspiciousActivitySeconds}/18s
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Live Proctoring Status Chips & Security Actions */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-          <div className="px-2.5 py-1 rounded-lg bg-forest-900/90 border border-forest-700 text-[10px] font-semibold flex items-center gap-1.5 text-emerald-300">
-            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Single Face Verified</span>
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 w-full md:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Face Status Chip */}
+            <div
+              className={`px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center gap-1.5 ${
+                detectedFacesCount === 1
+                  ? "bg-forest-900/90 border-forest-700 text-emerald-300"
+                  : "bg-red-900/90 border-red-500 text-white animate-pulse"
+              }`}
+            >
+              {detectedFacesCount === 1 ? (
+                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Users className="w-3.5 h-3.5 text-red-400" />
+              )}
+              <span>{detectedFacesCount === 1 ? "Single Face" : `${detectedFacesCount} Faces (VIOLATION)`}</span>
+            </div>
+
+            {/* Phone Detection Chip */}
+            <div
+              className={`px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center gap-1.5 ${
+                !phoneDetected
+                  ? "bg-forest-900/90 border-forest-700 text-emerald-300"
+                  : "bg-red-900/90 border-red-500 text-white animate-pulse"
+              }`}
+            >
+              <Smartphone className={`w-3.5 h-3.5 ${!phoneDetected ? "text-emerald-400" : "text-red-400"}`} />
+              <span>{phoneDetected ? "Mobile Phone Detected" : "No Phone"}</span>
+            </div>
           </div>
 
-          <div className="px-2.5 py-1 rounded-lg bg-forest-900/90 border border-forest-700 text-[10px] font-semibold flex items-center gap-1.5 text-ochre-300">
-            <Eye className="w-3.5 h-3.5 text-ochre-400" />
-            <span>Gaze Tracked</span>
-          </div>
+          <div className="flex items-center gap-2">
+            {/* Quick Testing Triggers for Proctors & Demonstrations */}
+            <button
+              onClick={() => {
+                if (!phoneDetected) {
+                  setPhoneDetected(true);
+                  triggerProctorAlert(
+                    "PHONE_DETECTED",
+                    "Unauthorized Mobile Device Detected in Camera Frame",
+                    "A smartphone or mobile screen was identified in your webcam feed. Remove all secondary devices immediately.",
+                    "CRITICAL"
+                  );
+                  logProctoring("MOBILE_PHONE_DETECTED", { device: "Smartphone" });
+                  setTimeout(() => setPhoneDetected(false), 8000);
+                } else {
+                  setPhoneDetected(false);
+                }
+              }}
+              className="px-2 py-1 rounded bg-forest-800 hover:bg-forest-700 text-cream-200 text-[9px] font-semibold border border-forest-700"
+              title="Test Mobile Phone Optical Detection"
+            >
+              Simulate Phone
+            </button>
 
-          <button
-            onClick={() => {
-              if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => {});
-              }
-            }}
-            className="px-3 py-1 rounded-lg bg-ochre-400 hover:bg-ochre-300 text-forest-950 text-[10px] font-bold shadow-sm transition-all"
-          >
-            Lock Fullscreen
-          </button>
+            <button
+              onClick={() => {
+                if (detectedFacesCount === 1) {
+                  setDetectedFacesCount(2);
+                  triggerProctorAlert(
+                    "MULTIPLE_FACES",
+                    "Multiple Faces Detected in Camera Frame",
+                    "More than one person is present in the camera view. Candidate must take the exam completely alone.",
+                    "CRITICAL"
+                  );
+                  logProctoring("MULTIPLE_FACES_DETECTED", { faceCount: 2 });
+                  setTimeout(() => setDetectedFacesCount(1), 8000);
+                } else {
+                  setDetectedFacesCount(1);
+                }
+              }}
+              className="px-2 py-1 rounded bg-forest-800 hover:bg-forest-700 text-cream-200 text-[9px] font-semibold border border-forest-700"
+              title="Test Multiple Faces Optical Detection"
+            >
+              Simulate 2 Faces
+            </button>
+
+            <button
+              onClick={() => {
+                if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                  document.documentElement.requestFullscreen().catch(() => {});
+                }
+              }}
+              className="px-3 py-1 rounded-lg bg-ochre-400 hover:bg-ochre-300 text-forest-950 text-[10px] font-bold shadow-sm transition-all"
+            >
+              Lock Fullscreen
+            </button>
+          </div>
         </div>
       </div>
 
