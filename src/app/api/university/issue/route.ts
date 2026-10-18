@@ -36,11 +36,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Student profile not found" }, { status: 404 });
     }
 
-    // Get University Organization
-    const uniOrg = await prisma.organization.findFirst({
-      where: { type: "UNIVERSITY" },
-      include: { universityProfile: true, issuers: true },
-    });
+    // Get University Organization (specific to logged-in user if available)
+    let uniOrg = null;
+    if (user.organization?.id) {
+      uniOrg = await prisma.organization.findUnique({
+        where: { id: user.organization.id },
+        include: { universityProfile: true, issuers: true },
+      });
+    } else {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+        include: { organization: { include: { universityProfile: true, issuers: true } } },
+      });
+      uniOrg = membership?.organization || (await prisma.organization.findFirst({
+        where: { type: "UNIVERSITY" },
+        include: { universityProfile: true, issuers: true },
+      }));
+    }
 
     if (!uniOrg) {
       return NextResponse.json({ error: "University organization not found" }, { status: 404 });

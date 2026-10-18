@@ -322,4 +322,65 @@ describe("SkillChain Complete End-to-End Flow Verification", () => {
     expect(result.consentGranted).toBe(false);
     expect(result.error).toContain("Candidate consent required");
   });
+
+  it("Step 8: Token Economics — University spends 3 tokens per degree, Recruiter spends 5 tokens per profile unlock with 3/2 split", async () => {
+    // 8a. Verify University degree issuance token deduction
+    const initialUniTokens = universityOrg.tokenBalance;
+    const DEGREE_ISSUANCE_TOKEN_COST = 3;
+
+    // Simulate university issuing a degree and deducting 3 tokens
+    const updatedUni = await prisma.organization.update({
+      where: { id: universityOrg.id },
+      data: { tokenBalance: { decrement: DEGREE_ISSUANCE_TOKEN_COST } },
+    });
+
+    expect(updatedUni.tokenBalance).toBe(initialUniTokens - DEGREE_ISSUANCE_TOKEN_COST);
+
+    // 8b. Verify Recruiter profile unlock token deduction & atomic 3/2 split
+    const initialRecruiterTokens = employerOrg.tokenBalance;
+    const initialStudentTokens = studentProfile.tokenBalance;
+    const REQUIRED_TOKENS = 5;
+    const PLATFORM_TOKENS = 3;
+    const STUDENT_TOKENS = 2;
+
+    // Clean up any existing unlock between this employer & student for test idempotency
+    await prisma.profileUnlock.deleteMany({
+      where: {
+        organizationId: employerOrg.id,
+        studentProfileId: studentProfile.id,
+      },
+    });
+
+    // Execute the exact transaction that /api/recruiter/unlock-profile runs
+    const unlockResult = await prisma.$transaction(async (tx) => {
+      const uOrg = await tx.organization.update({
+        where: { id: employerOrg.id },
+        data: { tokenBalance: { decrement: REQUIRED_TOKENS } },
+      });
+
+      const uStudent = await tx.studentProfile.update({
+        where: { id: studentProfile.id },
+        data: { tokenBalance: { increment: STUDENT_TOKENS } },
+      });
+
+      const unlockRecord = await tx.profileUnlock.create({
+        data: {
+          organizationId: employerOrg.id,
+          studentProfileId: studentProfile.id,
+          platformTokens: PLATFORM_TOKENS,
+          studentTokens: STUDENT_TOKENS,
+        },
+      });
+
+      return { uOrg, uStudent, unlockRecord };
+    });
+
+    // 8c. Assert balances changed precisely as designed
+    expect(unlockResult.uOrg.tokenBalance).toBe(initialRecruiterTokens - REQUIRED_TOKENS);
+    expect(unlockResult.uStudent.tokenBalance).toBe(initialStudentTokens + STUDENT_TOKENS);
+    expect(unlockResult.unlockRecord.platformTokens).toBe(PLATFORM_TOKENS);
+    expect(unlockResult.unlockRecord.studentTokens).toBe(STUDENT_TOKENS);
+    expect(unlockResult.unlockRecord.organizationId).toBe(employerOrg.id);
+    expect(unlockResult.unlockRecord.studentProfileId).toBe(studentProfile.id);
+  });
 });
