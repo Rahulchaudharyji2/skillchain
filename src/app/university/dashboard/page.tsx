@@ -21,19 +21,39 @@ export const revalidate = 0;
 export default async function UniversityDashboardPage() {
   const user = await getCurrentUser();
 
-  const [uniOrg, credentials, studentsCount, issuersCount] = await Promise.all([
-    prisma.organization.findFirst({
-      where: { type: "UNIVERSITY" },
-      include: { universityProfile: true },
-    }),
+  let uniOrg = null;
+  if (user) {
+    if (user.organization?.id) {
+      uniOrg = await prisma.organization.findUnique({
+        where: { id: user.organization.id },
+        include: { universityProfile: true },
+      });
+    } else {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+        include: { organization: { include: { universityProfile: true } } },
+      });
+      uniOrg = membership?.organization || (await prisma.organization.findFirst({
+        where: { type: "UNIVERSITY" },
+        include: { universityProfile: true },
+      }));
+    }
+  }
+
+  const orgId = uniOrg?.id;
+
+  const [credentials, studentsCount, issuersCount] = await Promise.all([
     prisma.credential.findMany({
+      where: orgId ? { organizationId: orgId } : undefined,
       include: {
         studentProfile: { include: { user: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.studentProfile.count(),
-    prisma.issuer.count(),
+    prisma.issuer.count({
+      where: orgId ? { organizationId: orgId } : undefined,
+    }),
   ]);
 
   const pendingAccepted = credentials.filter((c) => c.status === "STUDENT_ACCEPTED");
@@ -57,6 +77,14 @@ export default async function UniversityDashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/wallet"
+            className="px-3.5 py-2 rounded-xl bg-purple-900 text-white hover:bg-purple-800 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+          >
+            <Award className="w-3.5 h-3.5 text-purple-200" />
+            <span>Allocation Tokens: <strong className="font-mono text-purple-200">{uniOrg?.tokenBalance ?? 50}</strong></span>
+          </Link>
+
           <Link
             href="/university/issuance-batches"
             className="px-4 py-2.5 rounded-xl bg-white border border-cream-300 text-forest-900 hover:bg-cream-100 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"

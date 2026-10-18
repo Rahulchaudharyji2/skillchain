@@ -18,8 +18,26 @@ import { formatDate } from "@/lib/utils";
 export default async function RecruiterDashboardPage() {
   const user = await getCurrentUser();
 
+  let recruiterOrg = null;
+  if (user) {
+    if (user.organization?.id) {
+      recruiterOrg = await prisma.organization.findUnique({
+        where: { id: user.organization.id },
+      });
+    } else {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+        include: { organization: true },
+      });
+      recruiterOrg = membership?.organization || (await prisma.organization.findFirst({ where: { type: "EMPLOYER" } }));
+    }
+  }
+
+  const orgId = recruiterOrg?.id;
+
   const [jobs, applications, candidatesCount, interviews] = await Promise.all([
     prisma.job.findMany({
+      where: orgId ? { organizationId: orgId } : undefined,
       include: {
         organization: true,
         applications: { include: { studentProfile: { include: { user: true } } } },
@@ -27,6 +45,7 @@ export default async function RecruiterDashboardPage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.application.findMany({
+      where: orgId ? { job: { organizationId: orgId } } : undefined,
       include: {
         job: true,
         studentProfile: { include: { user: true } },
@@ -36,6 +55,7 @@ export default async function RecruiterDashboardPage() {
     }),
     prisma.studentProfile.count(),
     prisma.interview.findMany({
+      where: orgId ? { application: { job: { organizationId: orgId } } } : undefined,
       include: {
         application: { include: { job: true, studentProfile: { include: { user: true } } } },
         report: true,
@@ -57,11 +77,19 @@ export default async function RecruiterDashboardPage() {
             Talent Discovery & Verification
           </h1>
           <p className="text-xs text-stone-500 mt-1">
-            Stripe Global Recruiting • AI Job Creator & Deterministic Match Engine
+            {recruiterOrg?.name || "Verified Recruiter"} Recruiting • AI Job Creator & Match Engine
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/wallet"
+            className="px-3.5 py-2 rounded-xl bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-ochre-300" />
+            <span>Tokens: <strong className="text-ochre-300 font-mono">{recruiterOrg?.tokenBalance ?? 50}</strong></span>
+          </Link>
+
           <Link
             href="/recruiter/candidates"
             className="px-4 py-2.5 rounded-xl bg-white border border-cream-300 text-forest-900 hover:bg-cream-100 text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"

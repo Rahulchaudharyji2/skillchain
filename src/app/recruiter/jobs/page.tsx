@@ -13,8 +13,14 @@ import {
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
+import { getCurrentUser } from "@/lib/auth/session";
+
 export default async function RecruiterJobsPage() {
+  const user = await getCurrentUser();
+  const recruiterOrgId = user?.organization?.id;
+
   const jobs = await prisma.job.findMany({
+    where: recruiterOrgId ? { organizationId: recruiterOrgId } : undefined,
     include: {
       organization: true,
       applications: true,
