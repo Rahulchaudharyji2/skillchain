@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/session";
-import { JitsiMeetingRoom } from "@/components/interviews/JitsiMeetingRoom";
+import { WebRtcMeetingRoom } from "@/components/interviews/WebRtcMeetingRoom";
 import {
   ArrowLeft,
   Calendar,
@@ -97,9 +97,10 @@ export default async function StudentInterviewLiveRoomPage({
 
       {/* Main Grid: Live Video Meeting + Side Tips & Guidelines */}
       <div className="grid lg:grid-cols-12 gap-6">
-        {/* Left Column (8 cols): Real-Time WebRTC Jitsi Meeting Window */}
+        {/* Left Column (8 cols): Real-Time WebRTC Google Meet Style Window */}
         <div className="lg:col-span-8 space-y-4">
-          <JitsiMeetingRoom
+          <WebRtcMeetingRoom
+            interviewId={interview.id}
             roomName={roomName}
             userName={currentUser?.name || candidate.name}
             userRole="CANDIDATE"

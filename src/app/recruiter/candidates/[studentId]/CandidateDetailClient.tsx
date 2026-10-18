@@ -682,17 +682,25 @@ export function CandidateDetailClient({
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  Evaluation Meeting URL
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-stone-700">
+                    Live WebRTC Meeting Room
+                  </label>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                    Google Meet Architecture
+                  </span>
+                </div>
                 <input
-                  type="url"
+                  type="text"
                   value={meetingUrl}
                   onChange={(e) => setMeetingUrl(e.target.value)}
                   required
-                  placeholder="https://meet.skillchain.org/room/..."
+                  placeholder="https://skillchain.org/rooms/webrtc-..."
                   className="w-full px-3 py-2 rounded-lg border border-cream-300 bg-white text-stone-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-forest-800"
                 />
+                <span className="text-[11px] text-stone-500 mt-1 block">
+                  Participants will join the 1:1 HD WebRTC meeting room directly inside SkillChain with camera, mic, screen-share, and live chat.
+                </span>
               </div>
 
               <div>
