@@ -1,4 +1,4 @@
-# SkillChain — Verifiable Skills, Trusted Hiring
+# SkillChain — Verifiable Skills , Trusted Hiring
 
 > **Team:** Beast Coders  
 > **Platform:** Next.js 15 App Router • Polygon Amoy Testnet • Prisma ORM • Viem • Zod • Tailwind CSS  
