@@ -140,10 +140,10 @@ export function MetaMaskWalletButton() {
       <button
         onClick={connectWallet}
         disabled={connecting}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold shadow-xs transition-all active:scale-95 disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold shadow-xs transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
       >
         <span className="text-sm">🦊</span>
-        <span>{connecting ? "Connecting..." : "Connect MetaMask"}</span>
+        <span>{connecting ? "Connecting..." : "Connect Wallet"}</span>
       </button>
     );
   }

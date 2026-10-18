@@ -25,75 +25,93 @@ export async function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-cream-300/80 bg-cream-50/90 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand */}
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-forest-900 text-ochre-400 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+    <header className="sticky top-0 z-30 w-full border-b border-cream-300/80 bg-cream-50/95 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        {/* Brand & Left Navigation */}
+        <div className="flex items-center gap-5 xl:gap-8 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 flex-shrink-0 group">
+            <div className="w-9 h-9 rounded-xl bg-forest-900 text-ochre-400 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform flex-shrink-0">
               <ShieldCheck className="w-5 h-5 text-ochre-300" />
             </div>
-            <div>
-              <span className="font-display font-bold text-lg text-forest-950 tracking-tight flex items-center gap-1.5">
-                SkillChain
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-ochre-100 text-ochre-900 border border-ochre-300">
+            <div className="flex flex-col justify-center">
+              <div className="flex items-center gap-1.5">
+                <span className="font-display font-extrabold text-base text-forest-950 tracking-tight leading-none">
+                  SkillChain
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-ochre-100 text-ochre-900 border border-ochre-300 whitespace-nowrap leading-none shadow-2xs">
                   Amoy Testnet
                 </span>
-              </span>
-              <p className="text-[10px] text-stone-500 font-medium tracking-tight">
+              </div>
+              <span className="text-[10px] text-stone-500 font-medium tracking-tight whitespace-nowrap leading-none mt-1">
                 Verifiable Skills, Trusted Hiring
-              </p>
+              </span>
             </div>
           </Link>
-
-          {/* Navigation links */}
-          <nav className="hidden md:flex items-center gap-6 text-xs font-semibold text-stone-600">
-            <Link href="/features" className="hover:text-forest-900 transition-colors">
-              Features
-            </Link>
-            <Link href="/how-it-works" className="hover:text-forest-900 transition-colors">
-              How It Works
-            </Link>
-            <Link href="/universities" className="hover:text-forest-900 transition-colors">
-              Universities
-            </Link>
-            <Link href="/employers" className="hover:text-forest-900 transition-colors">
-              Employers
-            </Link>
-            <Link href="/jobs" className="hover:text-forest-900 transition-colors flex items-center gap-1">
-              Job Board
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-            </Link>
-            <Link
-              href="/wallet"
-              className="hover:text-forest-900 transition-colors flex items-center gap-1 text-ochre-800 font-bold"
-            >
-              Token Wallet
-            </Link>
-            <Link
-              href="/verify/0x8fae19b489a24dcbe89123849182a47291847192849182938491829384918293"
-              className="hover:text-forest-900 transition-colors flex items-center gap-1"
-            >
-              <FileCheck className="w-3.5 h-3.5" />
-              Verify Credential
-            </Link>
-          </nav>
         </div>
 
+        {/* Desktop Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1 text-xs font-semibold text-stone-600">
+          <Link
+            href="/jobs"
+            className="px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap flex items-center gap-1.5"
+          >
+            <span>Job Board</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          </Link>
+
+          <Link
+            href="/wallet"
+            className="px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap text-ochre-800 font-bold"
+          >
+            Token Wallet
+          </Link>
+
+          <Link
+            href="/verify/0x8fae19b489a24dcbe89123849182a47291847192849182938491829384918293"
+            className="px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap flex items-center gap-1.5"
+          >
+            <FileCheck className="w-3.5 h-3.5 text-stone-500" />
+            <span>Verify Credential</span>
+          </Link>
+
+          <Link
+            href="/features"
+            className="px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap"
+          >
+            Features
+          </Link>
+
+          <Link
+            href="/how-it-works"
+            className="hidden 2xl:inline-flex px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap"
+          >
+            How It Works
+          </Link>
+
+          <Link
+            href="/universities"
+            className="hidden 2xl:inline-flex px-2.5 py-1.5 rounded-lg hover:text-forest-950 hover:bg-cream-200/60 transition-colors whitespace-nowrap"
+          >
+            Universities
+          </Link>
+        </nav>
+
         {/* Right side controls */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
           <div className="hidden sm:block">
             <MetaMaskWalletButton />
           </div>
 
-          <Link
-            href="/login"
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-semibold text-stone-700 hover:text-forest-900 hover:bg-stone-100 transition-all"
-            title="Institutional Login"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>Login</span>
-          </Link>
+          {!user && (
+            <Link
+              href="/login"
+              className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs font-semibold text-stone-700 hover:text-forest-900 hover:bg-stone-100 transition-all whitespace-nowrap"
+              title="Institutional Login"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Login</span>
+            </Link>
+          )}
 
           <div className="hidden sm:block">
             <DemoSwitcher
@@ -105,7 +123,7 @@ export async function Navbar() {
 
           <Link
             href={getPortalLink()}
-            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 transition-all text-xs font-semibold shadow-sm"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 transition-all text-xs font-semibold shadow-xs whitespace-nowrap flex-shrink-0"
           >
             <span>Launch Portal</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-ochre-300" />
