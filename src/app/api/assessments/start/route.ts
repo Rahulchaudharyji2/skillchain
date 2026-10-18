@@ -104,26 +104,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Check Cooldown Period between attempts
-    const cooldownHours = assessment.cooldownHours || 24;
-    const latestAttempt = pastAttempts[0];
-    if (latestAttempt && latestAttempt.completedAt) {
-      const cooldownMs = cooldownHours * 60 * 60 * 1000;
-      const elapsedMs = Date.now() - latestAttempt.completedAt.getTime();
-
-      if (elapsedMs < cooldownMs) {
-        const remainingHours = Math.ceil((cooldownMs - elapsedMs) / (60 * 60 * 1000));
-        return NextResponse.json(
-          {
-            error: "COOLDOWN_ACTIVE",
-            message: `A cooldown period of ${cooldownHours}h is required between attempts. Please retry in ${remainingHours} hour(s).`,
-            remainingHours,
-            cooldownHours,
-          },
-          { status: 429 }
-        );
-      }
-    }
+    // 5. Check Cooldown Period between attempts (Temporarily disabled as requested)
+    // const cooldownHours = assessment.cooldownHours || 24;
+    // const latestAttempt = pastAttempts[0];
+    // if (latestAttempt && latestAttempt.completedAt) {
+    //   const cooldownMs = cooldownHours * 60 * 60 * 1000;
+    //   const elapsedMs = Date.now() - latestAttempt.completedAt.getTime();
+    //   if (elapsedMs < cooldownMs) {
+    //     const remainingHours = Math.ceil((cooldownMs - elapsedMs) / (60 * 60 * 1000));
+    //     return NextResponse.json(
+    //       {
+    //         error: "COOLDOWN_ACTIVE",
+    //         message: `A cooldown period of ${cooldownHours}h is required between attempts. Please retry in ${remainingHours} hour(s).`,
+    //         remainingHours,
+    //         cooldownHours,
+    //       },
+    //       { status: 429 }
+    //     );
+    //   }
+    // }
 
     // 6. Create new attempt with Authoritative Timer and Version snapshot
     const now = new Date();
