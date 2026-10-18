@@ -90,19 +90,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Check Attempt Limits
-    const maxAllowed = assessment.maxAttempts || 3;
-    if (pastAttempts.length >= maxAllowed) {
-      return NextResponse.json(
-        {
-          error: "ATTEMPT_LIMIT_EXCEEDED",
-          message: `You have reached the maximum limit of ${maxAllowed} attempts for this assessment.`,
-          attemptsUsed: pastAttempts.length,
-          maxAllowed,
-        },
-        { status: 403 }
-      );
-    }
+    // 4. Check Attempt Limits (Temporarily bypassed for testing mode)
+    // const maxAllowed = assessment.maxAttempts || 3;
+    // if (pastAttempts.length >= maxAllowed) {
+    //   return NextResponse.json(
+    //     {
+    //       error: "ATTEMPT_LIMIT_EXCEEDED",
+    //       message: `You have reached the maximum limit of ${maxAllowed} attempts for this assessment.`,
+    //       attemptsUsed: pastAttempts.length,
+    //       maxAllowed,
+    //     },
+    //     { status: 403 }
+    //   );
+    // }
 
     // 5. Check Cooldown Period between attempts (Temporarily disabled as requested)
     // const cooldownHours = assessment.cooldownHours || 24;

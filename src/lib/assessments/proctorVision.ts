@@ -342,78 +342,80 @@ export class ProctorVisionEngine {
     // -------------------------------------------------------------
     // Mobile Phone / Smartphone Optical Detection
     // -------------------------------------------------------------
-    // Phones held up to camera are vertical rectangles with high contrast/dark bezel/illuminated screen.
+    // Phones held up to camera are vertical rectangular handheld devices
+    // with distinct aspect ratio (1.7 - 2.3), dark outer bezel, and high screen luminosity gradient.
+    // They are held in hands in the lower-half of the frame.
     let phoneDetected = false;
     let phoneBox: BoundingBox | undefined = undefined;
 
-    const startRow = Math.floor(height * 0.20);
-    const endRow = Math.floor(height * 0.95);
+    // Constrain scan to lower 65% of the frame (hands/chest level)
+    const startRow = Math.floor(height * 0.35);
+    const endRow = Math.floor(height * 0.90);
     const phoneCandidates: { x: number; y: number; w: number; h: number; score: number }[] = [];
 
-    // Scan for phone shapes (width 40-90px, height 70-170px, aspect 1.5 to 2.4)
-    for (let sampleY = startRow; sampleY < endRow; sampleY += 10) {
-      for (let sampleX = 15; sampleX < width - 65; sampleX += 8) {
-        for (const testW of [45, 60, 75]) {
-          const testH = Math.floor(testW * 1.85);
+    // Scan for realistic handheld mobile phone dimensions:
+    // Screen width 45-70px, aspect ratio 1.7 to 2.2
+    for (let sampleY = startRow; sampleY < endRow; sampleY += 12) {
+      for (let sampleX = 25; sampleX < width - 75; sampleX += 10) {
+        for (const testW of [48, 62]) {
+          const testH = Math.floor(testW * 1.95);
           if (sampleY + testH >= height || sampleX + testW >= width) continue;
 
-          // Ignore if it's completely inside a candidate's upper head region
-          const isInsideHead = opticalFaces.some((f) => {
-            const headCenterY = f.y + f.height * 0.4;
-            const headCenterX = f.x + f.width / 2;
-            return (
-              sampleX >= f.x &&
-              sampleX + testW <= f.x + f.width &&
-              sampleY <= headCenterY &&
-              Math.abs(sampleX + testW / 2 - headCenterX) < f.width * 0.35
-            );
+          // Must NOT overlap any recognized face or chest collar center
+          const overlapsPersonFace = opticalFaces.some((f) => {
+            const overlapX = sampleX < f.x + f.width && sampleX + testW > f.x;
+            const overlapY = sampleY < f.y + f.height && sampleY + testH > f.y;
+            return overlapX && overlapY;
           });
-          if (isInsideHead) continue;
+          if (overlapsPersonFace) continue;
 
-          let edgeContrastHits = 0;
-          let screenDarkOrBrightHits = 0;
+          let darkBezelPoints = 0;
+          let screenGradientPoints = 0;
           let samplesChecked = 0;
 
-          for (let dy = 6; dy < testH - 6; dy += 6) {
+          // Check along top, bottom, left and right edges
+          for (let dy = 8; dy < testH - 8; dy += 8) {
             const cy = sampleY + dy;
             const leftIdx = (cy * width + sampleX) * 4;
             const rightIdx = (cy * width + (sampleX + testW)) * 4;
             const centerIdx = (cy * width + (sampleX + Math.floor(testW / 2))) * 4;
-            const outsideLeftIdx = (cy * width + Math.max(0, sampleX - 6)) * 4;
-            const outsideRightIdx = (cy * width + Math.min(width - 1, sampleX + testW + 6)) * 4;
+            const outerLeftIdx = (cy * width + Math.max(0, sampleX - 8)) * 4;
+            const outerRightIdx = (cy * width + Math.min(width - 1, sampleX + testW + 8)) * 4;
 
             const leftLum = 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
             const rightLum = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
             const centerLum = 0.299 * data[centerIdx] + 0.587 * data[centerIdx + 1] + 0.114 * data[centerIdx + 2];
-            const outLLum = 0.299 * data[outsideLeftIdx] + 0.587 * data[outsideLeftIdx + 1] + 0.114 * data[outsideLeftIdx + 2];
-            const outRLum = 0.299 * data[outsideRightIdx] + 0.587 * data[outsideRightIdx + 1] + 0.114 * data[outsideRightIdx + 2];
+            const outLLum = 0.299 * data[outerLeftIdx] + 0.587 * data[outerLeftIdx + 1] + 0.114 * data[outerLeftIdx + 2];
+            const outRLum = 0.299 * data[outerRightIdx] + 0.587 * data[outerRightIdx + 1] + 0.114 * data[outerRightIdx + 2];
 
             samplesChecked++;
 
-            // Phone characteristics:
-            // 1) Dark border / bezel (Lum < 85) OR strong boundary gradient with background
-            const isDarkBezel = leftLum < 85 || rightLum < 85;
-            const hasEdgeStep = Math.abs(leftLum - outLLum) > 22 || Math.abs(rightLum - outRLum) > 22;
-            if (isDarkBezel || hasEdgeStep) {
-              edgeContrastHits++;
+            // Strict smartphone bezel check:
+            // 1. Both left and right borders must be dark (black/dark bezel < 60)
+            const isDarkBezel = leftLum < 60 && rightLum < 60;
+            // 2. High contrast between outer background and dark phone edge
+            const hasSharpBorder = Math.abs(leftLum - outLLum) > 30 || Math.abs(rightLum - outRLum) > 30;
+            if (isDarkBezel && hasSharpBorder) {
+              darkBezelPoints++;
             }
 
-            // 2) Phone screen surface has distinct luminance from bezel
-            if (Math.abs(centerLum - leftLum) > 20 || Math.abs(centerLum - rightLum) > 20) {
-              screenDarkOrBrightHits++;
+            // 3. Screen interior must be noticeably illuminated or contrasting from the dark bezel
+            if (centerLum - leftLum > 28 && centerLum - rightLum > 28) {
+              screenGradientPoints++;
             }
           }
 
-          const edgeRatio = edgeContrastHits / (samplesChecked || 1);
-          const screenRatio = screenDarkOrBrightHits / (samplesChecked || 1);
+          const bezelRatio = darkBezelPoints / (samplesChecked || 1);
+          const screenRatio = screenGradientPoints / (samplesChecked || 1);
 
-          if (edgeRatio >= 0.55 && screenRatio >= 0.45) {
+          // Requires strong confidence: strict dark bezel + illuminated phone display
+          if (bezelRatio >= 0.70 && screenRatio >= 0.60) {
             phoneCandidates.push({
               x: sampleX,
               y: sampleY,
               w: testW,
               h: testH,
-              score: edgeRatio + screenRatio,
+              score: bezelRatio + screenRatio,
             });
           }
         }
