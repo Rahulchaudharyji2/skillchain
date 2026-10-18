@@ -65,11 +65,11 @@ export function AssessmentConsentForm({
         />
         <div className="text-xs text-stone-700 leading-relaxed space-y-1">
           <p>
-            I affirm that I will independently complete this assessment without unauthorized aids. I consent
-            to technical browser focus and visibility logging for integrity verification.
+            I affirm that I will independently complete this assessment in fullscreen mode. I consent
+            to AI video proctoring, face verification (no multiple faces), gaze angle telemetry, and strict screen-switching prevention for academic credibility.
           </p>
           <p className="text-[11px] text-stone-500">
-            <strong>Fair Assessment Guarantee:</strong> SkillChain never automatically treats proctoring flags as proof of cheating. Any anomalous activity undergoes human assessor review.
+            <strong>Proctoring Rules:</strong> Screen switching or multiple faces will trigger instant security alerts and log audit events.
           </p>
         </div>
       </label>

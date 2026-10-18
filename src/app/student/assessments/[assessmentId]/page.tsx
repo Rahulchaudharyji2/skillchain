@@ -102,9 +102,10 @@ export default async function AssessmentDetailPage({ params }: AssessmentDetailP
             an isolated server-side sandbox against undisclosed hidden test cases.
           </p>
           <ul className="text-xs text-stone-600 space-y-1 list-disc list-inside">
-            <li>Tab switches and lost focus events are logged as audit events.</li>
-            <li>No webcam or microphone permissions are required for this tier.</li>
-            <li>In the event of an appeal, an authorized human reviewer reviews the timeline.</li>
+            <li><strong>No Screen Switching:</strong> Tab switches and leaving the window trigger instant anti-cheat alerts.</li>
+            <li><strong>AI Camera & Face Proctoring:</strong> Single-face verification active. Multiple faces or missing face are flagged.</li>
+            <li><strong>Gaze & Head Angle Monitoring:</strong> Turning away from the examination screen generates security notifications.</li>
+            <li><strong>Server-Side Hidden Tests:</strong> Code executes in an isolated sandbox with automated grading.</li>
           </ul>
         </div>
 

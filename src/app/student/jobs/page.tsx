@@ -174,6 +174,7 @@ export default async function StudentJobsPage() {
                   jobId={job.id}
                   hasApplied={hasApplied}
                   matchScore={match.overallScore}
+                  missingSkills={match.missingSkills}
                 />
               </div>
             </div>
