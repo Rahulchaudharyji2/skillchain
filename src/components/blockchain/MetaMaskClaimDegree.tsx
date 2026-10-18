@@ -10,6 +10,7 @@ interface MetaMaskClaimDegreeProps {
   credIdHex: string;
   title: string;
   institutionName: string;
+  initialStatus?: string;
   onClaimSuccess?: (txHash: string) => void;
 }
 
@@ -18,69 +19,53 @@ export function MetaMaskClaimDegree({
   credIdHex,
   title,
   institutionName,
+  initialStatus = "INITIATED",
   onClaimSuccess,
 }: MetaMaskClaimDegreeProps) {
   const [connecting, setConnecting] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(initialStatus);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const connectAndClaim = async () => {
+  const connectAndAccept = async () => {
     setError(null);
     setConnecting(true);
 
     try {
-      if (typeof window === "undefined" || !(window as any).ethereum) {
-        // Fallback for browsers without MetaMask extension
-        const userConfirm = window.confirm(
-          "MetaMask extension was not detected in this browser. Would you like to use the SkillChain In-Browser Web3 Signer to accept and soulbound-lock this degree onto Polygon Amoy?"
-        );
-        if (!userConfirm) {
-          setConnecting(false);
-          return;
-        }
+      let address = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
 
-        // Generate simulated wallet address
-        const fallbackAddress = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
-        await submitClaimToServer(fallbackAddress, null);
-        return;
-      }
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const ethereum = (window as any).ethereum;
+        const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+        address = accounts[0];
+        setWalletAddress(address);
 
-      const ethereum = (window as any).ethereum;
-
-      // 1. Request account access
-      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-      const address = accounts[0];
-      setWalletAddress(address);
-
-      // 2. Ensure Polygon Amoy Testnet (Chain ID 80002 / 0x13882)
-      const currentChainId = await ethereum.request({ method: "eth_chainId" });
-      const amoyHex = "0x" + POLYGON_AMOY_CHAIN_ID.toString(16);
-
-      if (currentChainId !== amoyHex) {
-        try {
-          await ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: amoyHex }],
-          });
-        } catch (switchError: any) {
-          // If chain is not added, request to add Polygon Amoy
-          if (switchError.code === 4902) {
+        // Ensure Amoy network
+        const amoyHex = "0x" + POLYGON_AMOY_CHAIN_ID.toString(16);
+        const currentChainId = await ethereum.request({ method: "eth_chainId" });
+        if (currentChainId !== amoyHex) {
+          try {
             await ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: amoyHex,
-                  chainName: "Polygon Amoy Testnet",
-                  nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-                  rpcUrls: ["https://rpc-amoy.polygon.technology"],
-                  blockExplorerUrls: ["https://amoy.polygonscan.com"],
-                },
-              ],
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: amoyHex }],
             });
-          } else {
-            console.warn("Chain switch error:", switchError);
+          } catch (switchErr: any) {
+            if (switchErr.code === 4902) {
+              await ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: amoyHex,
+                    chainName: "Polygon Amoy Testnet",
+                    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+                    rpcUrls: ["https://rpc-amoy.polygon.technology"],
+                    blockExplorerUrls: ["https://amoy.polygonscan.com"],
+                  },
+                ],
+              });
+            }
           }
         }
       }
@@ -88,34 +73,25 @@ export function MetaMaskClaimDegree({
       setConnecting(false);
       setClaiming(true);
 
-      // 3. Send claim transaction or signature via MetaMask
-      let sentTxHash: string | null = null;
-      try {
-        // Try requesting transaction sign or claim via contract call data
-        // claimDegree(bytes32) function selector: 0xa4a23bd2 (first 4 bytes of keccak256("claimDegree(bytes32)"))
-        // Format credId to 32 bytes hex
-        const cleanCredId = credIdHex.replace(/^0x/, "").padEnd(64, "0");
-        const callData = `0xa4a23bd2${cleanCredId}`;
+      // Call accept API
+      const res = await fetch(`/api/student/credentials/${credentialId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: address }),
+      });
 
-        sentTxHash = await ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: address,
-              to: REGISTRY_CONTRACT_ADDRESS,
-              data: callData,
-            },
-          ],
-        });
-      } catch (txErr: any) {
-        console.warn("Direct MetaMask tx error (proceeding with gasless relayer):", txErr?.message);
-        // Fallback: If user rejects gas payment or has 0 testnet MATIC, use gasless relayer
+      const data = await res.json();
+      if (data.success) {
+        setCurrentStatus("STUDENT_ACCEPTED");
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setError(data.error || "Failed to submit acceptance.");
       }
-
-      await submitClaimToServer(address, sentTxHash);
     } catch (err: any) {
-      console.error("MetaMask claim error:", err);
-      setError(err?.message || "Failed to connect MetaMask. Please try again.");
+      setError(err?.message || "Failed to complete acceptance.");
     } finally {
       setConnecting(false);
       setClaiming(false);
@@ -177,6 +153,25 @@ export function MetaMaskClaimDegree({
     );
   }
 
+  if (currentStatus === "STUDENT_ACCEPTED") {
+    return (
+      <div className="p-4 rounded-xl bg-sky-50 border border-sky-300 text-sky-950 space-y-2 animate-in zoom-in-95">
+        <div className="flex items-center gap-2 text-xs font-bold text-sky-900">
+          <CheckCircle2 className="w-4 h-4 text-sky-600" />
+          <span>✅ Proposal Accepted — Awaiting Institutional Registrar Seal</span>
+        </div>
+        <p className="text-[11px] text-sky-800 leading-relaxed">
+          You have successfully reviewed and approved this academic degree proposal with your MetaMask wallet{walletAddress ? ` (${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)})` : ""}.
+          The university administration has been notified and will confer the permanent Soulbound Seal on Polygon Amoy.
+        </p>
+        <div className="pt-1 flex items-center gap-2 text-[10px] text-sky-700 font-semibold">
+          <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
+          <span>Once permanently sealed by the college, this degree will be non-transferable on PolygonScan.</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {error && (
@@ -186,26 +181,26 @@ export function MetaMaskClaimDegree({
       )}
 
       <button
-        onClick={connectAndClaim}
+        onClick={connectAndAccept}
         disabled={connecting || claiming}
         className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50"
       >
         {connecting || claiming ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin text-white" />
-            <span>{connecting ? "Connecting MetaMask..." : "Claiming Soulbound Degree..."}</span>
+            <span>{connecting ? "Connecting MetaMask..." : "Submitting Acceptance..."}</span>
           </>
         ) : (
           <>
             <span className="text-base leading-none">🦊</span>
-            <span>Accept & Claim Soulbound Degree via MetaMask</span>
+            <span>Accept Degree Proposal via MetaMask</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           </>
         )}
       </button>
 
       <p className="text-[10px] text-stone-500">
-        Requires Polygon Amoy Testnet. Once claimed, this degree is permanently soulbound to your wallet address and cannot be transferred.
+        Requires MetaMask on Polygon Amoy. Once accepted, the university registrar confers the permanent Soulbound seal.
       </p>
     </div>
   );

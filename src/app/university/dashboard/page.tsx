@@ -33,6 +33,9 @@ export default async function UniversityDashboardPage() {
     prisma.issuer.count(),
   ]);
 
+  const pendingAccepted = credentials.filter((c) => c.status === "STUDENT_ACCEPTED");
+  const pendingInitiated = credentials.filter((c) => c.status === "INITIATED" || c.status === "OFFERED");
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
@@ -68,6 +71,38 @@ export default async function UniversityDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Action Banner for Student Accepted Degrees */}
+      {pendingAccepted.length > 0 && (
+        <div className="card-premium p-5 bg-gradient-to-r from-emerald-50 to-sky-50 border-2 border-emerald-400 shadow-md space-y-3 animate-in zoom-in-95">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-950 inline-block mb-1">
+                  🎉 {pendingAccepted.length} Student Degree(s) Accepted & Ready to Seal
+                </span>
+                <h3 className="text-base font-bold text-forest-950">
+                  Student Permission Granted via MetaMask
+                </h3>
+                <p className="text-xs text-stone-600">
+                  Students have accepted their degree proposals. Click to permanently confer the Soulbound Seal onto Polygon Amoy.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/university/credentials"
+              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs flex items-center gap-2 shadow-sm transition-all"
+            >
+              <span>Confer Soulbound Seals Now</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -130,42 +165,68 @@ export default async function UniversityDashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {credentials.map((cred) => (
-              <div key={cred.id} className="card-premium p-4 bg-white border border-cream-300 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 font-bold text-xs flex-shrink-0">
-                    <Award className="w-5 h-5" />
+            {credentials.map((cred) => {
+              const isInitiated = cred.status === "INITIATED" || cred.status === "OFFERED";
+              const isAccepted = cred.status === "STUDENT_ACCEPTED";
+              const isActive = cred.status === "ACTIVE";
+
+              return (
+                <div key={cred.id} className="card-premium p-4 bg-white border border-cream-300 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 font-bold text-xs flex-shrink-0">
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-forest-950 block">
+                        {cred.title} — {cred.studentProfile.user.name}
+                      </span>
+                      <span className="text-[11px] text-stone-500 block">
+                        Field: {cred.fieldOfStudy} • Conferred {formatDate(cred.issuanceDate)}
+                      </span>
+                      {cred.txHash && (
+                        <span className="text-[10px] font-mono text-stone-400 block truncate max-w-sm">
+                          Tx: {cred.txHash}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-forest-950 block">
-                      {cred.title} — {cred.studentProfile.user.name}
+
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                        isActive
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : isAccepted
+                          ? "bg-sky-100 text-sky-800 border border-sky-300"
+                          : isInitiated
+                          ? "bg-amber-100 text-amber-900 border border-amber-300"
+                          : "bg-stone-100 text-stone-800"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      {isInitiated
+                        ? "INITIATED"
+                        : isAccepted
+                        ? "STUDENT ACCEPTED"
+                        : isActive
+                        ? "ACTIVE SOULBOUND"
+                        : cred.status}
                     </span>
-                    <span className="text-[11px] text-stone-500 block">
-                      Field: {cred.fieldOfStudy} • Conferred {formatDate(cred.issuanceDate)}
-                    </span>
-                    <span className="text-[10px] font-mono text-stone-400 block truncate max-w-sm">
-                      Tx: {cred.txHash}
-                    </span>
+
+                    {isActive && (
+                      <Link
+                        href={`/verify/${cred.credId}`}
+                        target="_blank"
+                        className="p-1.5 rounded-lg bg-cream-100 hover:bg-cream-200 text-forest-900"
+                        title="Inspect Public Verification"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="seal-badge text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    {cred.status}
-                  </span>
-
-                  <Link
-                    href={`/verify/${cred.credId}`}
-                    target="_blank"
-                    className="p-1.5 rounded-lg bg-cream-100 hover:bg-cream-200 text-forest-900"
-                    title="Inspect Public Verification"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

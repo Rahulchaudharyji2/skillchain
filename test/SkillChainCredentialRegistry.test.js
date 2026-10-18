@@ -317,6 +317,34 @@ describe("SkillChainCredentialRegistry — Comprehensive Verification Suite", fu
         registry.connect(student2).claimDegree(credId)
       ).to.be.revertedWithCustomError(registry, "UnauthorizedStudent");
     });
+
+    it("Full 3-Step Consensual Handshake: College initiates -> Student accepts via MetaMask -> College permanently seals Soulbound", async function () {
+      const stepCredId = ethers.keccak256(ethers.toUtf8Bytes("CRED-3STEP-HANDSHAKE-01"));
+
+      // 1. College initiates
+      await expect(registry.connect(issuer1).initiateDegree(stepCredId, commitment, student1.address, typeURI))
+        .to.emit(registry, "DegreeInitiated");
+
+      let cred = await registry.getCredential(stepCredId);
+      expect(cred.status).to.equal(4); // Initiated
+
+      // 2. Student accepts with MetaMask
+      await expect(registry.connect(student1).studentAcceptDegree(stepCredId))
+        .to.emit(registry, "DegreeAcceptedByStudent");
+
+      cred = await registry.getCredential(stepCredId);
+      expect(cred.status).to.equal(5); // StudentAccepted
+      expect(cred.studentWallet).to.equal(student1.address);
+
+      // 3. College gives final permanent Soulbound seal
+      await expect(registry.connect(issuer1).conferSoulboundDegree(stepCredId))
+        .to.emit(registry, "DegreeConferredSoulbound")
+        .and.to.emit(registry, "CredentialIssued");
+
+      cred = await registry.getCredential(stepCredId);
+      expect(cred.status).to.equal(1); // Active (Soulbound locked)
+      expect(cred.issuedAt).to.be.greaterThan(0);
+    });
   });
 });
 

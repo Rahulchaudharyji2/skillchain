@@ -88,13 +88,17 @@ export function IssueWizardClient({ students }: IssueWizardClientProps) {
         <div>
           <span className="seal-badge text-[10px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 mb-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ON-CHAIN ANCHOR CONFIRMED
+            {result.status === "OFFERED" ? "HANDSHAKE STEP 1: DEGREE PROPOSAL INITIATED" : "ON-CHAIN SOULBOUND CONFERRED"}
           </span>
           <h2 className="text-2xl font-bold font-display text-forest-950">
-            Academic Credential Successfully Conferred
+            {result.status === "OFFERED"
+              ? "Degree Conferral Initiated for Student"
+              : "Academic Credential Successfully Conferred"}
           </h2>
           <p className="text-xs text-stone-500 mt-1">
-            Privacy-preserving commitment recorded on Polygon Amoy testnet.
+            {result.status === "OFFERED"
+              ? "Handshake request has been dispatched to the student's portal. Once the student connects MetaMask and accepts, you can confer the permanent Soulbound seal on Polygon Amoy."
+              : "Privacy-preserving commitment recorded on Polygon Amoy testnet."}
           </p>
         </div>
 

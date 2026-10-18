@@ -20,34 +20,58 @@ export default async function StudentDashboardPage() {
   const user = await getCurrentUser();
 
   // Load student profile with credentials, attempts, applications, interviews
-  const profile = await prisma.studentProfile.findFirst({
-    where: {
-      OR: [
-        { userId: user?.id },
-        { user: { email: user?.email || "alex.rivera@student.mit.edu" } },
-      ],
-    },
-    include: {
-      user: true,
-      credentials: {
-        include: { organization: true },
-      },
-      assessmentAttempts: {
-        where: { status: "GRADED" },
-        include: { assessment: true, assessmentResult: true },
-        take: 3,
-      },
-      applications: {
-        include: {
-          job: { include: { organization: true } },
-          interviews: true,
+  let profile =
+    user?.role === "STUDENT"
+      ? await prisma.studentProfile.findFirst({
+          where: { userId: user.id },
+          include: {
+            user: true,
+            credentials: {
+              include: { organization: true },
+            },
+            assessmentAttempts: {
+              where: { status: "GRADED" },
+              include: { assessment: true, assessmentResult: true },
+              take: 3,
+            },
+            applications: {
+              include: {
+                job: { include: { organization: true } },
+                interviews: true,
+              },
+            },
+            studentSkills: {
+              include: { skill: true },
+            },
+          },
+        })
+      : null;
+
+  if (!profile) {
+    profile = await prisma.studentProfile.findFirst({
+      where: { user: { email: "alex.rivera@student.mit.edu" } },
+      include: {
+        user: true,
+        credentials: {
+          include: { organization: true },
+        },
+        assessmentAttempts: {
+          where: { status: "GRADED" },
+          include: { assessment: true, assessmentResult: true },
+          take: 3,
+        },
+        applications: {
+          include: {
+            job: { include: { organization: true } },
+            interviews: true,
+          },
+        },
+        studentSkills: {
+          include: { skill: true },
         },
       },
-      studentSkills: {
-        include: { skill: true },
-      },
-    },
-  });
+    });
+  }
 
   const credentials = profile?.credentials || [];
   const attempts = profile?.assessmentAttempts || [];
@@ -58,7 +82,13 @@ export default async function StudentDashboardPage() {
     .flatMap((a) => a.interviews)
     .find((i) => i.status === "SCHEDULED" || i.status === "COMPLETED");
 
-  const offeredCredential = credentials.find((c) => c.status === "OFFERED" || c.status === "PENDING_ACCEPTANCE");
+  const offeredCredential = credentials.find(
+    (c) =>
+      c.status === "OFFERED" ||
+      c.status === "PENDING_ACCEPTANCE" ||
+      c.status === "INITIATED" ||
+      c.status === "STUDENT_ACCEPTED"
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -96,32 +126,59 @@ export default async function StudentDashboardPage() {
         </div>
       </div>
 
-      {/* Pending Soulbound Degree Claim Banner */}
+      {/* Pending or Accepted Soulbound Degree Banner */}
       {offeredCredential && (
-        <div className="card-premium p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 shadow-md space-y-4 animate-in zoom-in-95">
+        <div
+          className={`card-premium p-6 border-2 shadow-md space-y-4 animate-in zoom-in-95 ${
+            offeredCredential.status === "STUDENT_ACCEPTED"
+              ? "bg-gradient-to-r from-sky-50 to-blue-50 border-sky-400"
+              : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-400"
+          }`}
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+              <div
+                className={`w-12 h-12 rounded-2xl text-white flex items-center justify-center shadow-sm ${
+                  offeredCredential.status === "STUDENT_ACCEPTED" ? "bg-sky-600" : "bg-amber-500"
+                }`}
+              >
                 <Award className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 inline-block mb-1">
-                  🎓 College Assigned Soulbound Degree
+                <span
+                  className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded inline-block mb-1 ${
+                    offeredCredential.status === "STUDENT_ACCEPTED"
+                      ? "bg-sky-200 text-sky-900"
+                      : "bg-amber-200 text-amber-900"
+                  }`}
+                >
+                  {offeredCredential.status === "STUDENT_ACCEPTED"
+                    ? "✅ Accepted by Student — Awaiting Final University Seal"
+                    : "🎓 College Initiated Soulbound Degree"}
                 </span>
                 <h3 className="text-lg font-bold text-forest-950">
                   {offeredCredential.title}
                 </h3>
                 <p className="text-xs text-stone-600">
-                  Conferred by <strong>{offeredCredential.organization.name}</strong> • {offeredCredential.fieldOfStudy} (Grade: {offeredCredential.grade})
+                  Conferred by <strong>{offeredCredential.organization.name}</strong> •{" "}
+                  {offeredCredential.fieldOfStudy} (Grade: {offeredCredential.grade})
                 </p>
               </div>
             </div>
 
             <Link
               href="/student/credentials"
-              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs flex items-center gap-2 shadow-sm transition-all"
+              className={`px-4 py-2.5 rounded-xl text-white font-semibold text-xs flex items-center gap-2 shadow-sm transition-all ${
+                offeredCredential.status === "STUDENT_ACCEPTED"
+                  ? "bg-sky-600 hover:bg-sky-700"
+                  : "bg-amber-600 hover:bg-amber-700"
+              }`}
             >
-              <span>🦊 Accept & Claim with MetaMask</span>
+              <span>
+                {offeredCredential.status === "STUDENT_ACCEPTED"
+                  ? "View Degree Status"
+                  : "🦊 Review & Accept with MetaMask"}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

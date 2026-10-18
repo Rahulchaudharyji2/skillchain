@@ -15,11 +15,12 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
     bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
 
     enum CredentialStatus {
-        None,        // 0: Credential does not exist
-        Active,      // 1: Valid and active
-        Suspended,   // 2: Temporarily suspended pending institutional review
-        Revoked,     // 3: Permanently revoked
-        Offered      // 4: Offered by college, awaiting student claim via MetaMask
+        None,             // 0: Credential does not exist
+        Active,           // 1: Valid and active (Soulbound Locked)
+        Suspended,        // 2: Temporarily suspended pending institutional review
+        Revoked,          // 3: Permanently revoked
+        Initiated,        // 4: Initiated by university, awaiting student review & acceptance
+        StudentAccepted   // 5: Student accepted with MetaMask, awaiting university final seal
     }
 
     struct CredentialRecord {
@@ -63,6 +64,25 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
         address studentWallet,
         string credentialTypeURI,
         uint64 offeredAt
+    );
+    event DegreeInitiated(
+        bytes32 indexed credId,
+        bytes32 indexed commitment,
+        address indexed issuer,
+        address studentWallet,
+        string credentialTypeURI,
+        uint64 initiatedAt
+    );
+    event DegreeAcceptedByStudent(
+        bytes32 indexed credId,
+        address indexed studentWallet,
+        uint64 acceptedAt
+    );
+    event DegreeConferredSoulbound(
+        bytes32 indexed credId,
+        address indexed studentWallet,
+        address indexed issuer,
+        uint64 conferredAt
     );
     event DegreeClaimed(
         bytes32 indexed credId,
@@ -127,10 +147,6 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
 
     /**
      * @notice Issues a verifiable credential record with a privacy-preserving commitment
-     * @param credId Opaque UUID or hash uniquely identifying the credential
-     * @param commitment Cryptographic commitment (salted hash of W3C payload)
-     * @param studentWallet Holder wallet address
-     * @param credentialTypeURI Identifier for the credential schema
      */
     function issueCredential(
         bytes32 credId,
@@ -164,7 +180,49 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
     }
 
     /**
-     * @notice University offers an academic degree to a student wallet, awaiting MetaMask acceptance
+     * @notice Step 1: University initiates an academic degree for a student, awaiting student review & acceptance
+     */
+    function initiateDegree(
+        bytes32 credId,
+        bytes32 commitment,
+        address studentWallet,
+        string calldata credentialTypeURI
+    ) external onlyRole(ISSUER_ROLE) whenNotPaused {
+        if (_credentials[credId].status != CredentialStatus.None) {
+            revert CredentialAlreadyExists(credId);
+        }
+        if (commitment == bytes32(0)) revert EmptyCommitmentNotAllowed();
+
+        _credentials[credId] = CredentialRecord({
+            commitment: commitment,
+            studentWallet: studentWallet,
+            issuer: msg.sender,
+            issuedAt: 0,
+            revokedAt: 0,
+            status: CredentialStatus.Initiated,
+            credentialTypeURI: credentialTypeURI
+        });
+
+        emit DegreeInitiated(
+            credId,
+            commitment,
+            msg.sender,
+            studentWallet,
+            credentialTypeURI,
+            uint64(block.timestamp)
+        );
+        emit DegreeOffered(
+            credId,
+            commitment,
+            msg.sender,
+            studentWallet,
+            credentialTypeURI,
+            uint64(block.timestamp)
+        );
+    }
+
+    /**
+     * @notice Alias for initiateDegree for backwards compatibility
      */
     function offerDegree(
         bytes32 credId,
@@ -183,7 +241,7 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
             issuer: msg.sender,
             issuedAt: 0,
             revokedAt: 0,
-            status: CredentialStatus.Offered,
+            status: CredentialStatus.Initiated,
             credentialTypeURI: credentialTypeURI
         });
 
@@ -198,12 +256,58 @@ contract SkillChainCredentialRegistry is AccessControl, Pausable {
     }
 
     /**
-     * @notice Student connects MetaMask to claim and soulbound-lock the offered degree
+     * @notice Step 2: Student reviews details and accepts degree initiation via MetaMask
+     */
+    function studentAcceptDegree(bytes32 credId) external whenNotPaused {
+        CredentialRecord storage record = _credentials[credId];
+        if (record.status == CredentialStatus.None) revert CredentialNotFound(credId);
+        if (record.status != CredentialStatus.Initiated) {
+            revert InvalidCredentialStatus(credId, record.status);
+        }
+        if (record.studentWallet != address(0) && record.studentWallet != msg.sender) {
+            revert UnauthorizedStudent(msg.sender, record.studentWallet);
+        }
+
+        record.studentWallet = msg.sender;
+        record.status = CredentialStatus.StudentAccepted;
+
+        emit DegreeAcceptedByStudent(credId, msg.sender, uint64(block.timestamp));
+    }
+
+    /**
+     * @notice Step 3: University confirms student's wallet acceptance and permanently seals soulbound degree on-chain
+     */
+    function conferSoulboundDegree(bytes32 credId) external whenNotPaused {
+        CredentialRecord storage record = _credentials[credId];
+        if (record.status == CredentialStatus.None) revert CredentialNotFound(credId);
+        if (record.status != CredentialStatus.StudentAccepted && record.status != CredentialStatus.Initiated) {
+            revert InvalidCredentialStatus(credId, record.status);
+        }
+        if (record.issuer != msg.sender && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert UnauthorizedIssuer(msg.sender);
+        }
+
+        record.status = CredentialStatus.Active;
+        record.issuedAt = uint64(block.timestamp);
+
+        emit DegreeConferredSoulbound(credId, record.studentWallet, record.issuer, uint64(block.timestamp));
+        emit CredentialIssued(
+            credId,
+            record.commitment,
+            record.issuer,
+            record.studentWallet,
+            record.credentialTypeURI,
+            uint64(block.timestamp)
+        );
+    }
+
+    /**
+     * @notice Student direct claim (supports 1-step claim tests)
      */
     function claimDegree(bytes32 credId) external whenNotPaused {
         CredentialRecord storage record = _credentials[credId];
         if (record.status == CredentialStatus.None) revert CredentialNotFound(credId);
-        if (record.status != CredentialStatus.Offered) {
+        if (record.status != CredentialStatus.Initiated && record.status != CredentialStatus.StudentAccepted) {
             revert InvalidCredentialStatus(credId, record.status);
         }
         if (record.studentWallet != address(0) && record.studentWallet != msg.sender) {

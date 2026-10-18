@@ -52,66 +52,111 @@ export default async function UniversityCredentialsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-cream-100">
-              {credentials.map((cred) => (
-                <tr key={cred.id} className="hover:bg-cream-50/60 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-forest-950 block">
-                      {cred.studentProfile.user.name}
-                    </span>
-                    <span className="text-[11px] text-stone-400 block">
-                      {cred.studentProfile.user.email}
-                    </span>
-                  </td>
+              {credentials.map((cred) => {
+                const isInitiated = cred.status === "INITIATED" || cred.status === "OFFERED";
+                const isAccepted = cred.status === "STUDENT_ACCEPTED";
+                const isActive = cred.status === "ACTIVE";
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-semibold text-forest-900 block">{cred.title}</span>
-                    <span className="text-[11px] text-stone-500 block">
-                      {cred.fieldOfStudy} ({cred.grade})
-                    </span>
-                  </td>
+                return (
+                  <tr
+                    key={cred.id}
+                    className={`transition-colors ${
+                      isAccepted
+                        ? "bg-sky-50/50 hover:bg-sky-100/40"
+                        : isInitiated
+                        ? "bg-amber-50/40 hover:bg-amber-100/30"
+                        : "hover:bg-cream-50/60"
+                    }`}
+                  >
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-forest-950 block">
+                        {cred.studentProfile.user.name}
+                      </span>
+                      <span className="text-[11px] text-stone-500 block">
+                        {cred.studentProfile.user.email}
+                      </span>
+                      {cred.studentProfile.user.walletAddress && (
+                        <span className="text-[10px] font-mono text-emerald-800 block truncate max-w-[140px]">
+                          🦊 {cred.studentProfile.user.walletAddress}
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="py-3.5 px-4 font-mono text-[10px]">
-                    <span className="text-stone-400 block">Commitment:</span>
-                    <span className="text-forest-900 block truncate max-w-[140px]">
-                      {cred.commitment}
-                    </span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-semibold text-forest-900 block">{cred.title}</span>
+                      <span className="text-[11px] text-stone-500 block">
+                        {cred.fieldOfStudy} ({cred.grade})
+                      </span>
+                    </td>
 
-                  <td className="py-3.5 px-4 text-stone-500">{formatDate(cred.issuanceDate)}</td>
+                    <td className="py-3.5 px-4 font-mono text-[10px]">
+                      <span className="text-stone-400 block">Commitment:</span>
+                      <span className="text-forest-900 block truncate max-w-[140px]">
+                        {cred.commitment}
+                      </span>
+                      {cred.txHash && (
+                        <a
+                          href={`https://amoy.polygonscan.com/tx/${cred.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold pt-0.5"
+                        >
+                          <span>Tx: {cred.txHash.substring(0, 8)}...</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      )}
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        cred.status === "ACTIVE"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : cred.status === "SUSPENDED"
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {cred.status}
-                    </span>
-                  </td>
+                    <td className="py-3.5 px-4 text-stone-500">{formatDate(cred.issuanceDate)}</td>
 
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/verify/${cred.credId}`}
-                        target="_blank"
-                        className="p-1.5 rounded-lg bg-cream-100 hover:bg-cream-200 text-forest-900"
-                        title="Verify Public Proof"
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          isActive
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : isAccepted
+                            ? "bg-sky-100 text-sky-800 border border-sky-300"
+                            : isInitiated
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : cred.status === "SUSPENDED"
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-red-100 text-red-800"
+                        }`}
                       >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
+                        {isInitiated
+                          ? "INITIATED (WAITING ACCEPT)"
+                          : isAccepted
+                          ? "STUDENT ACCEPTED (READY)"
+                          : isActive
+                          ? "ACTIVE SOULBOUND"
+                          : cred.status}
+                      </span>
+                    </td>
 
-                      <CredentialStatusActions
-                        credentialId={cred.id}
-                        currentStatus={cred.status}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {isActive && (
+                          <Link
+                            href={`/verify/${cred.credId}`}
+                            target="_blank"
+                            className="p-1.5 rounded-lg bg-cream-100 hover:bg-cream-200 text-forest-900"
+                            title="Verify Public Proof"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Link>
+                        )}
+
+                        <CredentialStatusActions
+                          credentialId={cred.id}
+                          currentStatus={cred.status}
+                          studentName={cred.studentProfile.user.name}
+                          studentWallet={cred.studentProfile.user.walletAddress}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

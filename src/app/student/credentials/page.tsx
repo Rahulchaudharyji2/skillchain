@@ -18,22 +18,34 @@ import { MetaMaskClaimDegree } from "@/components/blockchain/MetaMaskClaimDegree
 export default async function StudentCredentialsPage() {
   const user = await getCurrentUser();
 
-  const profile = await prisma.studentProfile.findFirst({
-    where: {
-      OR: [
-        { userId: user?.id },
-        { user: { email: user?.email || "alex.rivera@student.mit.edu" } },
-      ],
-    },
-    include: {
-      credentials: {
-        include: {
-          organization: true,
-          statusEvents: { orderBy: { createdAt: "desc" } },
+  let profile =
+    user?.role === "STUDENT"
+      ? await prisma.studentProfile.findFirst({
+          where: { userId: user.id },
+          include: {
+            credentials: {
+              include: {
+                organization: true,
+                statusEvents: { orderBy: { createdAt: "desc" } },
+              },
+            },
+          },
+        })
+      : null;
+
+  if (!profile) {
+    profile = await prisma.studentProfile.findFirst({
+      where: { user: { email: "alex.rivera@student.mit.edu" } },
+      include: {
+        credentials: {
+          include: {
+            organization: true,
+            statusEvents: { orderBy: { createdAt: "desc" } },
+          },
         },
       },
-    },
-  });
+    });
+  }
 
   const credentials = profile?.credentials || [];
 
@@ -55,18 +67,35 @@ export default async function StudentCredentialsPage() {
 
       <div className="space-y-6">
         {credentials.map((cred) => {
-          const isOffered = cred.status === "OFFERED" || cred.status === "PENDING_ACCEPTANCE";
+          const isPendingAcceptance =
+            cred.status === "OFFERED" ||
+            cred.status === "PENDING_ACCEPTANCE" ||
+            cred.status === "INITIATED";
+          const isAccepted = cred.status === "STUDENT_ACCEPTED";
+          const isActive = cred.status === "ACTIVE";
 
           return (
             <div
               key={cred.id}
               className={`card-premium p-6 sm:p-8 bg-white border space-y-6 ${
-                isOffered ? "border-2 border-amber-400 bg-amber-50/20 shadow-md" : "border-cream-300"
+                isPendingAcceptance
+                  ? "border-2 border-amber-400 bg-amber-50/20 shadow-md"
+                  : isAccepted
+                  ? "border-2 border-sky-400 bg-sky-50/20 shadow-md"
+                  : "border-cream-300"
               }`}
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-cream-200 gap-4">
                 <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-2xl ${isOffered ? "bg-amber-200 text-amber-950" : "bg-amber-100 text-amber-900"}`}>
+                  <div
+                    className={`p-3 rounded-2xl ${
+                      isPendingAcceptance
+                        ? "bg-amber-200 text-amber-950"
+                        : isAccepted
+                        ? "bg-sky-200 text-sky-950"
+                        : "bg-emerald-100 text-emerald-900"
+                    }`}
+                  >
                     <GraduationCap className="w-7 h-7" />
                   </div>
                   <div>
@@ -83,16 +112,18 @@ export default async function StudentCredentialsPage() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
-                      isOffered
+                      isPendingAcceptance
                         ? "bg-amber-100 text-amber-900 border border-amber-300"
-                        : "seal-badge"
+                        : isAccepted
+                        ? "bg-sky-100 text-sky-900 border border-sky-300"
+                        : "bg-emerald-100 text-emerald-900 border border-emerald-300"
                     }`}
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                    STATUS: {isOffered ? "AWAITING METAMASK CLAIM" : cred.status}
+                    STATUS: {isPendingAcceptance ? "AWAITING YOUR ACCEPTANCE" : isAccepted ? "ACCEPTED (WAITING FINAL SEAL)" : "ACTIVE SOULBOUND"}
                   </span>
 
-                  {!isOffered && (
+                  {isActive && (
                     <Link
                       href={`/verify/${cred.credId}`}
                       className="px-3.5 py-1.5 rounded-lg bg-forest-900 text-cream-50 hover:bg-forest-800 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
@@ -104,22 +135,34 @@ export default async function StudentCredentialsPage() {
                 </div>
               </div>
 
-              {/* Action Banner for Offered Soulbound Degree */}
-              {isOffered && (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-950">
-                    <span>🦊</span>
-                    <span>College has Assigned this Soulbound Degree to You</span>
+              {/* Action Banner for Offered or Accepted Soulbound Degree */}
+              {(isPendingAcceptance || isAccepted) && (
+                <div
+                  className={`p-4 rounded-xl border space-y-3 ${
+                    isPendingAcceptance
+                      ? "bg-amber-50 border-amber-300"
+                      : "bg-sky-50 border-sky-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-xs font-bold text-forest-950">
+                    <span>🎓</span>
+                    <span>
+                      {isPendingAcceptance
+                        ? "University Has Initiated Degree Conferral — Accept with MetaMask"
+                        : "Degree Proposal Accepted by You — Waiting for University Final Seal"}
+                    </span>
                   </div>
-                  <p className="text-xs text-amber-900 leading-relaxed">
-                    Massachusetts Institute of Technology has approved your academic conferral. To permanently anchor
-                    and lock this non-transferable degree to your wallet on Polygon Amoy, connect MetaMask and accept below.
+                  <p className="text-xs text-stone-700 leading-relaxed">
+                    {isPendingAcceptance
+                      ? `${cred.organization.name} has initiated your academic conferral. To verify your identity and authorize your student wallet on Polygon Amoy, connect MetaMask and accept below. Once accepted, the university registrar confers the permanent Soulbound seal.`
+                      : `You have approved this degree conferral with your MetaMask wallet. The university registrar will now confer the final permanent Soulbound seal on Polygon Amoy. Once sealed, this degree will be permanently non-transferable.`}
                   </p>
                   <MetaMaskClaimDegree
                     credentialId={cred.id}
                     credIdHex={cred.credId}
                     title={cred.title}
                     institutionName={cred.organization.name}
+                    initialStatus={cred.status}
                   />
                 </div>
               )}
@@ -150,16 +193,16 @@ export default async function StudentCredentialsPage() {
                       </a>
                     )}
                   </div>
-                  <span className="text-forest-950 break-all text-[11px] block">{cred.txHash || "Pending Confirmation"}</span>
+                  <span className="text-forest-950 break-all text-[11px] block">{cred.txHash || "Pending Final Soulbound Mint"}</span>
                 </div>
               </div>
 
               {/* Soulbound Lock Guarantee */}
-              {!isOffered && (
+              {isActive && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs">
                   <Lock className="w-3.5 h-3.5 text-emerald-700" />
                   <span className="font-semibold">Soulbound Locked:</span>
-                  <span className="text-stone-600">This degree is non-transferable and permanently bound to student wallet on-chain.</span>
+                  <span className="text-stone-600">This degree is non-transferable and permanently bound to student wallet on Polygon Amoy.</span>
                 </div>
               )}
 
