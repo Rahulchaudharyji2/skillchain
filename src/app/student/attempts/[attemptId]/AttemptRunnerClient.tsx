@@ -460,10 +460,10 @@ export function AttemptRunnerClient({
 
       if (detectedFacesCount > 1) {
         currentAnomaly = "Multiple faces detected in camera frame";
-      } else if (detectedFacesCount === 0) {
-        currentAnomaly = "No candidate face visible in camera frame";
       } else if (phoneDetected) {
         currentAnomaly = "Mobile phone / secondary device detected in camera";
+      } else if (detectedFacesCount === 0 && cameraActive) {
+        currentAnomaly = "Candidate face missing from camera frame";
       } else if (faceDetectionStatus === "SUSPICIOUS_ANGLE") {
         currentAnomaly = "Suspicious head angle / gaze averted from screen";
       }

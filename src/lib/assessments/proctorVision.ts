@@ -55,6 +55,12 @@ export class ProctorVisionEngine {
     }
   }
 
+  // Temporal smoothing state to prevent momentary false-positives/negatives
+  private lastFaceCount = 1;
+  private noFaceConsecutiveFrames = 0;
+  private multiFaceConsecutiveFrames = 0;
+  private phoneConsecutiveFrames = 0;
+
   /**
    * Analyze an HTMLVideoElement frame in real time.
    * Native width/height of offscreen analysis is scaled to 320x240 for high FPS and low CPU impact.
@@ -100,8 +106,7 @@ export class ProctorVisionEngine {
     if (this.nativeFaceDetector) {
       try {
         const rawFaces = await this.nativeFaceDetector.detect(video);
-        if (Array.isArray(rawFaces)) {
-          // Map to 320x240 coordinates
+        if (Array.isArray(rawFaces) && rawFaces.length > 0) {
           const scaleX = width / (video.videoWidth || width);
           const scaleY = height / (video.videoHeight || height);
 
@@ -113,8 +118,8 @@ export class ProctorVisionEngine {
               y: Math.max(0, bb.y * scaleY),
               width: Math.min(width, bb.width * scaleX),
               height: Math.min(height, bb.height * scaleY),
-              label: isPrimary && rawFaces.length === 1 ? "Candidate" : `Face #${idx + 1}`,
-              isViolation: idx > 0, // secondary faces are violations
+              label: isPrimary && rawFaces.length === 1 ? "Candidate" : `Face #${idx + 1} (${isPrimary ? "Primary" : "Intruder"})`,
+              isViolation: idx > 0,
             };
           });
         }
@@ -127,20 +132,43 @@ export class ProctorVisionEngine {
     const imageData = ctx.getImageData(0, 0, width, height);
     const opticalResult = this.detectOpticalFeatures(imageData, width, height);
 
-    // If native detector wasn't supported or returned 0, use our robust optical facial clustering
+    // If native detector wasn't supported or returned 0, use optical facial clustering
     if (detectedFaces.length === 0 && opticalResult.opticalFaces.length > 0) {
       detectedFaces = opticalResult.opticalFaces;
     }
 
-    // Determine final face count
-    const faceCount = detectedFaces.length;
+    // Temporal Smoothing for Face Count to avoid false NO_FACE when candidate blinks or lighting shifts
+    let rawFaceCount = detectedFaces.length;
+    if (rawFaceCount === 0) {
+      this.noFaceConsecutiveFrames++;
+      // Only report 0 faces if absence persists for >= 4 consecutive frames (1.6 seconds)
+      if (this.noFaceConsecutiveFrames < 4) {
+        rawFaceCount = this.lastFaceCount;
+      }
+    } else {
+      this.noFaceConsecutiveFrames = 0;
+      if (rawFaceCount > 1) {
+        this.multiFaceConsecutiveFrames++;
+      } else {
+        this.multiFaceConsecutiveFrames = 0;
+      }
+      this.lastFaceCount = rawFaceCount;
+    }
+
+    // Temporal smoothing for Phone detection (trigger quickly in 2 frames, hold for stability)
+    if (opticalResult.phoneDetected) {
+      this.phoneConsecutiveFrames = Math.min(10, this.phoneConsecutiveFrames + 2);
+    } else {
+      this.phoneConsecutiveFrames = Math.max(0, this.phoneConsecutiveFrames - 1);
+    }
+    const finalPhoneDetected = this.phoneConsecutiveFrames >= 2;
 
     // Check Gaze & Face Angle Deviation on primary face
     let suspiciousAngle = false;
     let gazeDeviationScore = 0;
     let primaryFaceCentered = true;
 
-    if (faceCount > 0) {
+    if (detectedFaces.length > 0) {
       const primary = detectedFaces[0];
       const centerX = primary.x + primary.width / 2;
       const centerY = primary.y + primary.height / 2;
@@ -149,17 +177,16 @@ export class ProctorVisionEngine {
       const normY = Math.abs(centerY - height / 2) / (height / 2);
       gazeDeviationScore = Math.min(1, Math.sqrt(normX * normX + normY * normY));
 
-      // If face is shifted heavily toward left/right border, candidate is looking away
-      if (normX > 0.62 || primary.width < 35 || primary.height < 35) {
+      if (normX > 0.65 || primary.width < 30 || primary.height < 30) {
         suspiciousAngle = true;
         primaryFaceCentered = false;
       }
     }
 
     return {
-      faceCount,
+      faceCount: rawFaceCount,
       faces: detectedFaces,
-      phoneDetected: opticalResult.phoneDetected,
+      phoneDetected: finalPhoneDetected,
       phoneBox: opticalResult.phoneBox,
       suspiciousAngle,
       gazeDeviationScore,
@@ -190,12 +217,7 @@ export class ProctorVisionEngine {
       new Array(skinGridCols).fill(0)
     );
 
-    // Also look for mobile smartphone profile:
-    // Vertical dark rectangle or illuminated screen with height/width ratio ~1.6 - 2.4
-    let phoneDetected = false;
-    let phoneBox: BoundingBox | undefined = undefined;
-
-    // Analyze pixel color & luminance
+    // 1. Scan for human skin tones across broad lighting conditions
     for (let r = 0; r < skinGridRows; r++) {
       for (let c = 0; c < skinGridCols; c++) {
         let skinCount = 0;
@@ -204,8 +226,8 @@ export class ProctorVisionEngine {
         const startY = Math.floor(r * cellH);
         const startX = Math.floor(c * cellW);
 
-        for (let py = startY; py < startY + cellH; py += 3) {
-          for (let px = startX; px < startX + cellW; px += 3) {
+        for (let py = startY; py < startY + cellH; py += 2) {
+          for (let px = startX; px < startX + cellW; px += 2) {
             const idx = (py * width + px) * 4;
             const red = data[idx];
             const green = data[idx + 1];
@@ -213,26 +235,27 @@ export class ProctorVisionEngine {
 
             totalSampled++;
 
-            // Standard YCbCr & RGB human skin color threshold
-            // R > 95, G > 40, B > 20, max - min > 15, |R - G| > 15, R > G, R > B
+            // Human Skin Detection:
+            // High tolerance for indoor/webcam lighting
             const max = Math.max(red, green, blue);
             const min = Math.min(red, green, blue);
-            if (
-              red > 80 &&
-              green > 35 &&
-              blue > 20 &&
-              max - min > 12 &&
+            const isSkin =
+              red > 65 &&
+              green > 30 &&
+              blue > 15 &&
+              max - min > 10 &&
               red > green &&
               red > blue &&
-              Math.abs(red - green) > 10
-            ) {
+              Math.abs(red - green) >= 6;
+
+            if (isSkin) {
               skinCount++;
             }
           }
         }
 
         const skinRatio = skinCount / (totalSampled || 1);
-        if (skinRatio > 0.35) {
+        if (skinRatio > 0.28) {
           densityMap[r][c] = 1;
         }
       }
@@ -247,7 +270,6 @@ export class ProctorVisionEngine {
     for (let r = 0; r < skinGridRows; r++) {
       for (let c = 0; c < skinGridCols; c++) {
         if (densityMap[r][c] === 1 && !visited[r][c]) {
-          // BFS / Flood fill cluster
           let minC = c;
           let maxC = c;
           let minR = r;
@@ -286,19 +308,18 @@ export class ProctorVisionEngine {
             }
           }
 
-          // A cluster must be large enough to be a human face (>= 6 cells) and in the upper 75% of camera
           const clusterW = (maxC - minC + 1) * cellW;
           const clusterH = (maxR - minR + 1) * cellH;
           const aspect = clusterH / (clusterW || 1);
 
-          if (count >= 7 && clusterW >= 40 && clusterH >= 40 && aspect > 0.7 && aspect < 2.3 && minR < 18) {
+          // Face cluster criteria:
+          if (count >= 5 && clusterW >= 32 && clusterH >= 32 && aspect >= 0.65 && aspect <= 2.5 && minR < 20) {
             clusters.push({ minC, maxC, minR, maxR, count });
           }
         }
       }
     }
 
-    // Sort clusters by size (largest first - likely primary candidate)
     clusters.sort((a, b) => b.count - a.count);
 
     const opticalFaces: BoundingBox[] = clusters.map((cl, i) => {
@@ -321,84 +342,94 @@ export class ProctorVisionEngine {
     // -------------------------------------------------------------
     // Mobile Phone / Smartphone Optical Detection
     // -------------------------------------------------------------
-    // Phones held in hands are typically located in the lower 70% of frame,
-    // have high vertical aspect ratio (height:width between 1.6:1 and 2.5:1),
-    // have sharp vertical border contrast, or screen illumination with dark borders.
-    // Scan horizontal lines for high-contrast dark bezel / smartphone rectangle:
-    const startRow = Math.floor(height * 0.25);
-    const endRow = Math.floor(height * 0.95);
-    const candidates: { x: number; y: number; w: number; h: number; score: number }[] = [];
+    // Phones held up to camera are vertical rectangles with high contrast/dark bezel/illuminated screen.
+    let phoneDetected = false;
+    let phoneBox: BoundingBox | undefined = undefined;
 
-    // Sample vertical strips
-    for (let sampleY = startRow; sampleY < endRow; sampleY += 12) {
-      for (let sampleX = 20; sampleX < width - 70; sampleX += 10) {
-        // Test for smartphone width ~ 35 to 80 px, height ~ 60 to 140 px
+    const startRow = Math.floor(height * 0.20);
+    const endRow = Math.floor(height * 0.95);
+    const phoneCandidates: { x: number; y: number; w: number; h: number; score: number }[] = [];
+
+    // Scan for phone shapes (width 40-90px, height 70-170px, aspect 1.5 to 2.4)
+    for (let sampleY = startRow; sampleY < endRow; sampleY += 10) {
+      for (let sampleX = 15; sampleX < width - 65; sampleX += 8) {
         for (const testW of [45, 60, 75]) {
-          const testH = Math.floor(testW * 1.8);
+          const testH = Math.floor(testW * 1.85);
           if (sampleY + testH >= height || sampleX + testW >= width) continue;
 
-          // Check if this box overlaps directly with a recognized face head center
-          const overlapsFace = opticalFaces.some((f) => {
-            const fx = f.x + f.width / 2;
-            const fy = f.y + f.height / 2;
-            return fx >= sampleX && fx <= sampleX + testW && fy >= sampleY && fy <= sampleY + testH;
+          // Ignore if it's completely inside a candidate's upper head region
+          const isInsideHead = opticalFaces.some((f) => {
+            const headCenterY = f.y + f.height * 0.4;
+            const headCenterX = f.x + f.width / 2;
+            return (
+              sampleX >= f.x &&
+              sampleX + testW <= f.x + f.width &&
+              sampleY <= headCenterY &&
+              Math.abs(sampleX + testW / 2 - headCenterX) < f.width * 0.35
+            );
           });
-          if (overlapsFace) continue;
+          if (isInsideHead) continue;
 
-          // Check smartphone border characteristics:
-          // 1. Dark edges on left and right border
-          // 2. High gradient between inside and outside
-          let darkEdgeCount = 0;
-          let screenLuminanceTotal = 0;
-          let edgeChecks = 0;
+          let edgeContrastHits = 0;
+          let screenDarkOrBrightHits = 0;
+          let samplesChecked = 0;
 
-          for (let dy = 6; dy < testH - 6; dy += 8) {
+          for (let dy = 6; dy < testH - 6; dy += 6) {
             const cy = sampleY + dy;
-            const leftEdgeIdx = (cy * width + sampleX) * 4;
-            const rightEdgeIdx = (cy * width + (sampleX + testW)) * 4;
+            const leftIdx = (cy * width + sampleX) * 4;
+            const rightIdx = (cy * width + (sampleX + testW)) * 4;
             const centerIdx = (cy * width + (sampleX + Math.floor(testW / 2))) * 4;
+            const outsideLeftIdx = (cy * width + Math.max(0, sampleX - 6)) * 4;
+            const outsideRightIdx = (cy * width + Math.min(width - 1, sampleX + testW + 6)) * 4;
 
-            const leftLum = 0.299 * data[leftEdgeIdx] + 0.587 * data[leftEdgeIdx + 1] + 0.114 * data[leftEdgeIdx + 2];
-            const rightLum = 0.299 * data[rightEdgeIdx] + 0.587 * data[rightEdgeIdx + 1] + 0.114 * data[rightEdgeIdx + 2];
+            const leftLum = 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
+            const rightLum = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
             const centerLum = 0.299 * data[centerIdx] + 0.587 * data[centerIdx + 1] + 0.114 * data[centerIdx + 2];
+            const outLLum = 0.299 * data[outsideLeftIdx] + 0.587 * data[outsideLeftIdx + 1] + 0.114 * data[outsideLeftIdx + 2];
+            const outRLum = 0.299 * data[outsideRightIdx] + 0.587 * data[outsideRightIdx + 1] + 0.114 * data[outsideRightIdx + 2];
 
-            edgeChecks++;
-            screenLuminanceTotal += centerLum;
+            samplesChecked++;
 
-            // Smartphone bezel is commonly dark or strong contrast with screen
-            if (leftLum < 75 || rightLum < 75 || Math.abs(centerLum - leftLum) > 35) {
-              darkEdgeCount++;
+            // Phone characteristics:
+            // 1) Dark border / bezel (Lum < 85) OR strong boundary gradient with background
+            const isDarkBezel = leftLum < 85 || rightLum < 85;
+            const hasEdgeStep = Math.abs(leftLum - outLLum) > 22 || Math.abs(rightLum - outRLum) > 22;
+            if (isDarkBezel || hasEdgeStep) {
+              edgeContrastHits++;
+            }
+
+            // 2) Phone screen surface has distinct luminance from bezel
+            if (Math.abs(centerLum - leftLum) > 20 || Math.abs(centerLum - rightLum) > 20) {
+              screenDarkOrBrightHits++;
             }
           }
 
-          const bezelRatio = darkEdgeCount / (edgeChecks || 1);
-          const avgCenterLum = screenLuminanceTotal / (edgeChecks || 1);
+          const edgeRatio = edgeContrastHits / (samplesChecked || 1);
+          const screenRatio = screenDarkOrBrightHits / (samplesChecked || 1);
 
-          // If bezel is consistent and screen is distinct
-          if (bezelRatio > 0.65 && avgCenterLum > 40 && avgCenterLum < 240) {
-            candidates.push({
+          if (edgeRatio >= 0.55 && screenRatio >= 0.45) {
+            phoneCandidates.push({
               x: sampleX,
               y: sampleY,
               w: testW,
               h: testH,
-              score: bezelRatio,
+              score: edgeRatio + screenRatio,
             });
           }
         }
       }
     }
 
-    if (candidates.length > 0) {
-      // Pick best candidate
-      candidates.sort((a, b) => b.score - a.score);
-      const best = candidates[0];
+    if (phoneCandidates.length > 0) {
+      phoneCandidates.sort((a, b) => b.score - a.score);
+      const best = phoneCandidates[0];
       phoneDetected = true;
       phoneBox = {
         x: best.x,
         y: best.y,
         width: best.w,
         height: best.h,
-        label: "Mobile Phone Detected",
+        label: "📱 MOBILE PHONE",
         isViolation: true,
       };
     }
